@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'routes.dart';
+import '../screen/main_screen.dart';
 
 // TODO: 화면들 만들면 여기 import 추가
 // import '../screens/start/start_screen.dart';
@@ -9,9 +10,13 @@ class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case Routes.start:
-        // 임시 화면 (StartScreen 만들기 전까지)
         return MaterialPageRoute(
           builder: (_) => const _PlaceholderScreen(title: 'START'),
+          settings: settings,
+        );
+      case Routes.main:
+        return MaterialPageRoute(
+          builder: (_) => const MainScreen(),
           settings: settings,
         );
 
