@@ -1,22 +1,49 @@
 import 'package:flutter/material.dart';
 import 'routes.dart';
+import '../screen/auth/login_screen.dart';
+import '../screen/auth/sighup_screen.dart';
+import '../screen/cash/cash_detail__screen.dart';
+import '../screen/day/day_detail__screen.dart';
 import '../screen/main_screen.dart';
-
-// TODO: 화면들 만들면 여기 import 추가
-// import '../screens/start/start_screen.dart';
-// import '../screens/auth/login_screen.dart';
+import '../screen/my/mypage_screen.dart';
+import '../screen/start/start_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case Routes.start:
         return MaterialPageRoute(
-          builder: (_) => const _PlaceholderScreen(title: 'START'),
+          builder: (_) => const StartScreen(),
+          settings: settings,
+        );
+      case Routes.login:
+        return MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+          settings: settings,
+        );
+      case Routes.signup:
+        return MaterialPageRoute(
+          builder: (_) => const SignupScreen(),
           settings: settings,
         );
       case Routes.main:
         return MaterialPageRoute(
           builder: (_) => const MainScreen(),
+          settings: settings,
+        );
+      case Routes.dayDetail:
+        return MaterialPageRoute(
+          builder: (_) => const DayDetailScreen(),
+          settings: settings,
+        );
+      case Routes.cashDetail:
+        return MaterialPageRoute(
+          builder: (_) => const CashDetailScreen(),
+          settings: settings,
+        );
+      case Routes.mypage:
+        return MaterialPageRoute(
+          builder: (_) => const MyPageScreen(),
           settings: settings,
         );
 

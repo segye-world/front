@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
+import '../routes/routes.dart';
 
-class MainScreen extends StatelessWidget {
+class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
-  static const _userName = '세계';
-  static const _selectedDate = '9월 9일';
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
 
-  static final List<_ScheduleItem> _scheduleItems = [
+class _MainScreenState extends State<MainScreen> {
+  static const _userName = '세계';
+  static const _primaryPink = Color(0xFFF7A5A5);
+  static const _initialDate = DateTime(2025, 9, 9);
+
+  DateTime _selectedDate = _initialDate;
+
+  final List<_ScheduleItem> _scheduleItems = [
     _ScheduleItem(
       label: '아침 운동',
       timeRange: '07:00 - 09:30',
-      color: const Color(0xFFF28B82),
+      color: _primaryPink,
     ),
     _ScheduleItem(
       label: '친구 약속',
@@ -19,11 +28,15 @@ class MainScreen extends StatelessWidget {
     ),
   ];
 
-  static final List<_AccountRecord> _records = [
+  final List<_AccountRecord> _records = [
     _AccountRecord(title: '월급', category: '수입', amount: 3200000),
     _AccountRecord(title: '점심', category: '지출', amount: -12000),
     _AccountRecord(title: '교통', category: '지출', amount: -3500),
   ];
+
+  String _formatDate(DateTime date) {
+    return '${date.month}월 ${date.day}일';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,25 +72,44 @@ class MainScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _CalendarHeader(),
-                    const SizedBox(height: 12),
-                    _CalendarGrid(),
+                    CalendarDatePicker(
+                      initialDate: _initialDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2030),
+                      currentDate: _selectedDate,
+                      onDateChanged: (date) {
+                        setState(() {
+                          _selectedDate = date;
+                        });
+                      },
+                    ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          _selectedDate,
+                          _formatDate(_selectedDate),
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const Icon(Icons.notifications_none, size: 18),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.chevron_right, size: 18),
+                              onPressed: () {
+                                Navigator.of(context)
+                                    .pushNamed(Routes.dayDetail);
+                              },
+                            ),
+                            const Icon(Icons.notifications_none, size: 18),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _CategoryTabs(),
+                    _CategoryTabs(primaryPink: _primaryPink),
                     const SizedBox(height: 10),
                     Expanded(
                       child: ListView(
@@ -105,172 +137,28 @@ class MainScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const _BottomNavBar(),
+            _BottomNavBar(primaryPink: _primaryPink),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _CalendarHeader extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Icon(Icons.chevron_left, size: 20),
-        Row(
-          children: [
-            _DropdownChip(label: 'Sep'),
-            const SizedBox(width: 8),
-            _DropdownChip(label: '2025'),
-          ],
-        ),
-        const Icon(Icons.chevron_right, size: 20),
-      ],
-    );
-  }
-}
-
-class _DropdownChip extends StatelessWidget {
-  final String label;
-  const _DropdownChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-          ),
-          const Icon(Icons.expand_more, size: 14),
-        ],
-      ),
-    );
-  }
-}
-
-class _CalendarGrid extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-    const days = [
-      '',
-      '1',
-      '2',
-      '3',
-      '4',
-      '5',
-      '6',
-      '7',
-      '8',
-      '9',
-      '10',
-      '11',
-      '12',
-      '13',
-      '14',
-      '15',
-      '16',
-      '17',
-      '18',
-      '19',
-      '20',
-      '21',
-      '22',
-      '23',
-      '24',
-      '25',
-      '26',
-      '27',
-      '28',
-      '29',
-      '30',
-      '1',
-      '2',
-      '3',
-      '4',
-    ];
-
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: weekdays
-              .map(
-                (day) => Expanded(
-                  child: Center(
-                    child: Text(
-                      day,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 0,
-          runSpacing: 6,
-          children: days.asMap().entries.map((entry) {
-            final index = entry.key;
-            final day = entry.value;
-            final isSelected = day == '9';
-            final isMuted = day.isEmpty || index >= 30;
-            return SizedBox(
-              width: 36,
-              child: Center(
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFF28B82) : null,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    day,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isMuted
-                          ? Colors.black26
-                          : isSelected
-                              ? Colors.white
-                              : Colors.black87,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
     );
   }
 }
 
 class _CategoryTabs extends StatelessWidget {
+  final Color primaryPink;
+
+  const _CategoryTabs({required this.primaryPink});
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _TabChip(label: '일정', isActive: true),
+        _TabChip(label: '일정', isActive: true, activeColor: primaryPink),
         const SizedBox(width: 8),
-        _TabChip(label: '수입', isActive: false),
+        _TabChip(label: '수입', isActive: false, activeColor: primaryPink),
         const SizedBox(width: 8),
-        _TabChip(label: '소비', isActive: false),
+        _TabChip(label: '소비', isActive: false, activeColor: primaryPink),
       ],
     );
   }
@@ -279,15 +167,20 @@ class _CategoryTabs extends StatelessWidget {
 class _TabChip extends StatelessWidget {
   final String label;
   final bool isActive;
+  final Color activeColor;
 
-  const _TabChip({required this.label, required this.isActive});
+  const _TabChip({
+    required this.label,
+    required this.isActive,
+    required this.activeColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isActive ? const Color(0xFFF28B82) : const Color(0xFFF2F2F2),
+        color: isActive ? activeColor : const Color(0xFFF2F2F2),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
@@ -393,7 +286,9 @@ class _AccountRecordTile extends StatelessWidget {
 }
 
 class _BottomNavBar extends StatelessWidget {
-  const _BottomNavBar();
+  final Color primaryPink;
+
+  const _BottomNavBar({required this.primaryPink});
 
   @override
   Widget build(BuildContext context) {
@@ -401,14 +296,26 @@ class _BottomNavBar extends StatelessWidget {
       height: 56,
       margin: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
-        color: const Color(0xFFF28B82),
+        color: primaryPink,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
-        children: const [
-          _BottomNavItem(label: 'CASH', isActive: false),
-          _BottomNavItem(label: 'HOME', isActive: true),
-          _BottomNavItem(label: 'MYPAGE', isActive: false),
+        children: [
+          _BottomNavItem(
+            label: 'CASH',
+            isActive: false,
+            onTap: () => Navigator.of(context).pushNamed(Routes.cashDetail),
+          ),
+          _BottomNavItem(
+            label: 'HOME',
+            isActive: true,
+            onTap: () => Navigator.of(context).pushNamed(Routes.main),
+          ),
+          _BottomNavItem(
+            label: 'MYPAGE',
+            isActive: false,
+            onTap: () => Navigator.of(context).pushNamed(Routes.mypage),
+          ),
         ],
       ),
     );
@@ -418,25 +325,34 @@ class _BottomNavBar extends StatelessWidget {
 class _BottomNavItem extends StatelessWidget {
   final String label;
   final bool isActive;
+  final VoidCallback onTap;
 
-  const _BottomNavItem({required this.label, required this.isActive});
+  const _BottomNavItem({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFFEF7D75) : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFFF7A5A5) : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
           ),
         ),
       ),
