@@ -14,6 +14,7 @@ class _MainScreenState extends State<MainScreen> {
   static const _initialDate = DateTime(2025, 9, 9);
 
   DateTime _selectedDate = _initialDate;
+  _MainTab _selectedTab = _MainTab.schedule;
 
   final List<_ScheduleItem> _scheduleItems = [
     _ScheduleItem(
@@ -32,6 +33,11 @@ class _MainScreenState extends State<MainScreen> {
     _AccountRecord(title: '월급', category: '수입', amount: 3200000),
     _AccountRecord(title: '점심', category: '지출', amount: -12000),
     _AccountRecord(title: '교통', category: '지출', amount: -3500),
+  ];
+
+  final List<_TodoItem> _todoItems = [
+    _TodoItem(label: '백준 알고리즘 실버 2문제'),
+    _TodoItem(label: '두잉코딩 영어 1일차'),
   ];
 
   String _formatDate(DateTime date) {
@@ -72,16 +78,25 @@ class _MainScreenState extends State<MainScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CalendarDatePicker(
-                      initialDate: _initialDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                      currentDate: _selectedDate,
-                      onDateChanged: (date) {
-                        setState(() {
-                          _selectedDate = date;
-                        });
-                      },
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: Theme.of(context).colorScheme.copyWith(
+                              primary: _primaryPink,
+                              onPrimary: Colors.white,
+                              onSurface: Colors.black87,
+                            ),
+                      ),
+                      child: CalendarDatePicker(
+                        initialDate: _initialDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2030),
+                        currentDate: _selectedDate,
+                        onDateChanged: (date) {
+                          setState(() {
+                            _selectedDate = date;
+                          });
+                        },
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -109,27 +124,19 @@ class _MainScreenState extends State<MainScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _CategoryTabs(primaryPink: _primaryPink),
+                    _CategoryTabs(
+                      primaryPink: _primaryPink,
+                      selectedTab: _selectedTab,
+                      onTabSelected: (tab) {
+                        setState(() {
+                          _selectedTab = tab;
+                        });
+                      },
+                    ),
                     const SizedBox(height: 10),
                     Expanded(
                       child: ListView(
-                        children: [
-                          ..._scheduleItems.map(
-                            (item) => _ScheduleCard(item: item),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            '오늘의 수입/지출',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ..._records.map(
-                            (record) => _AccountRecordTile(record: record),
-                          ),
-                        ],
+                        children: _buildTabContent(),
                       ),
                     ),
                   ],
@@ -143,22 +150,76 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
+
+  List<Widget> _buildTabContent() {
+    switch (_selectedTab) {
+      case _MainTab.schedule:
+        return [
+          ..._scheduleItems.map(
+            (item) => _ScheduleCard(item: item),
+          ),
+        ];
+      case _MainTab.todo:
+        return [
+          ..._todoItems.map(
+            (item) => _TodoItemTile(item: item),
+          ),
+        ];
+      case _MainTab.consumption:
+        return [
+          const Text(
+            '오늘의 소비',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._records.map(
+            (record) => _AccountRecordTile(record: record),
+          ),
+        ];
+    }
+  }
 }
+
+enum _MainTab { schedule, todo, consumption }
 
 class _CategoryTabs extends StatelessWidget {
   final Color primaryPink;
+  final _MainTab selectedTab;
+  final ValueChanged<_MainTab> onTabSelected;
 
-  const _CategoryTabs({required this.primaryPink});
+  const _CategoryTabs({
+    required this.primaryPink,
+    required this.selectedTab,
+    required this.onTabSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _TabChip(label: '일정', isActive: true, activeColor: primaryPink),
-        const SizedBox(width: 8),
-        _TabChip(label: '수입', isActive: false, activeColor: primaryPink),
-        const SizedBox(width: 8),
-        _TabChip(label: '소비', isActive: false, activeColor: primaryPink),
+        _TabChip(
+          label: '일정',
+          isActive: selectedTab == _MainTab.schedule,
+          activeColor: primaryPink,
+          onTap: () => onTabSelected(_MainTab.schedule),
+        ),
+        const SizedBox(width: 16),
+        _TabChip(
+          label: '할 일',
+          isActive: selectedTab == _MainTab.todo,
+          activeColor: primaryPink,
+          onTap: () => onTabSelected(_MainTab.todo),
+        ),
+        const SizedBox(width: 16),
+        _TabChip(
+          label: '소비',
+          isActive: selectedTab == _MainTab.consumption,
+          activeColor: primaryPink,
+          onTap: () => onTabSelected(_MainTab.consumption),
+        ),
       ],
     );
   }
@@ -168,27 +229,36 @@ class _TabChip extends StatelessWidget {
   final String label;
   final bool isActive;
   final Color activeColor;
+  final VoidCallback onTap;
 
   const _TabChip({
     required this.label,
     required this.isActive,
     required this.activeColor,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: isActive ? activeColor : const Color(0xFFF2F2F2),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          color: isActive ? Colors.white : Colors.black54,
-          fontWeight: FontWeight.w500,
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isActive ? activeColor : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: isActive ? Colors.black87 : Colors.black45,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+          ),
         ),
       ),
     );
@@ -277,6 +347,46 @@ class _AccountRecordTile extends StatelessWidget {
               color: record.amount >= 0
                   ? const Color(0xFF1B5E20)
                   : const Color(0xFFB71C1C),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TodoItemTile extends StatelessWidget {
+  final _TodoItem item;
+
+  const _TodoItemTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEFEF),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black45, width: 1),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              item.label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black87,
+              ),
             ),
           ),
         ],
@@ -389,4 +499,10 @@ class _AccountRecord {
     required this.category,
     required this.amount,
   });
+}
+
+class _TodoItem {
+  final String label;
+
+  const _TodoItem({required this.label});
 }
