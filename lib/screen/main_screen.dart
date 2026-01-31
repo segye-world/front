@@ -11,9 +11,9 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   static const _userName = '세계';
   static const _primaryPink = Color(0xFFF7A5A5);
-  static const _initialDate = DateTime(2025, 9, 9);
+  static final DateTime _initialDate = DateTime(2025, 9, 9);
 
-  DateTime _selectedDate = _initialDate;
+  late DateTime _selectedDate = _initialDate;
   _MainTab _selectedTab = _MainTab.schedule;
 
   final List<_ScheduleItem> _scheduleItems = [
@@ -40,12 +40,46 @@ class _MainScreenState extends State<MainScreen> {
     _TodoItem(label: '두잉코딩 영어 1일차'),
   ];
 
-  String _formatDate(DateTime date) {
-    return '${date.month}월 ${date.day}일';
+  String _formatDate(DateTime date) => '${date.month}월 ${date.day}일';
+
+  DatePickerThemeData _buildDatePickerTheme() {
+    return DatePickerThemeData(
+      // ✅ 선택된 날짜: 핑크 원형 + 흰 글자 (Flutter 3.35: WidgetStateProperty)
+      dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return _primaryPink;
+        return null;
+      }),
+      dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return Colors.white;
+        if (states.contains(WidgetState.disabled)) return Colors.black26;
+        return Colors.black87;
+      }),
+
+      // ✅ 오늘 날짜: 핑크 테두리 + 글자색
+      todayBorder: const BorderSide(width: 1.6, color: _primaryPink),
+      todayForegroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return Colors.white;
+        return _primaryPink;
+      }),
+
+      // ✅ 요일/일자/헤더 스타일(선택 색 가시성에 도움)
+      weekdayStyle: const TextStyle(fontSize: 11, color: Colors.black54),
+      dayStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+      headerForegroundColor: Colors.black87,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final themed = Theme.of(context).copyWith(
+      colorScheme: Theme.of(context).colorScheme.copyWith(
+        primary: _primaryPink,
+        onPrimary: Colors.white,
+        onSurface: Colors.black87,
+      ),
+      datePickerTheme: _buildDatePickerTheme(),
+    );
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: SafeArea(
@@ -54,16 +88,16 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 24),
             Text(
               _userName,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
             Expanded(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 18,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
@@ -79,22 +113,17 @@ class _MainScreenState extends State<MainScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Theme(
-                      data: Theme.of(context).copyWith(
-                        colorScheme: Theme.of(context).colorScheme.copyWith(
-                              primary: _primaryPink,
-                              onPrimary: Colors.white,
-                              onSurface: Colors.black87,
-                            ),
-                      ),
+                      data: themed,
                       child: CalendarDatePicker(
                         initialDate: _initialDate,
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2030),
-                        currentDate: _selectedDate,
+
+                        // ✅ 선택 날짜 넣지 말고 "진짜 오늘"만 넣기
+                        currentDate: DateTime.now(),
+
                         onDateChanged: (date) {
-                          setState(() {
-                            _selectedDate = date;
-                          });
+                          setState(() => _selectedDate = date);
                         },
                       ),
                     ),
@@ -114,8 +143,9 @@ class _MainScreenState extends State<MainScreen> {
                             IconButton(
                               icon: const Icon(Icons.chevron_right, size: 18),
                               onPressed: () {
-                                Navigator.of(context)
-                                    .pushNamed(Routes.dayDetail);
+                                Navigator.of(
+                                  context,
+                                ).pushNamed(Routes.dayDetail);
                               },
                             ),
                             const Icon(Icons.notifications_none, size: 18),
@@ -128,17 +158,11 @@ class _MainScreenState extends State<MainScreen> {
                       primaryPink: _primaryPink,
                       selectedTab: _selectedTab,
                       onTabSelected: (tab) {
-                        setState(() {
-                          _selectedTab = tab;
-                        });
+                        setState(() => _selectedTab = tab);
                       },
                     ),
                     const SizedBox(height: 10),
-                    Expanded(
-                      child: ListView(
-                        children: _buildTabContent(),
-                      ),
-                    ),
+                    Expanded(child: ListView(children: _buildTabContent())),
                   ],
                 ),
               ),
@@ -154,30 +178,17 @@ class _MainScreenState extends State<MainScreen> {
   List<Widget> _buildTabContent() {
     switch (_selectedTab) {
       case _MainTab.schedule:
-        return [
-          ..._scheduleItems.map(
-            (item) => _ScheduleCard(item: item),
-          ),
-        ];
+        return [..._scheduleItems.map((item) => _ScheduleCard(item: item))];
       case _MainTab.todo:
-        return [
-          ..._todoItems.map(
-            (item) => _TodoItemTile(item: item),
-          ),
-        ];
+        return [..._todoItems.map((item) => _TodoItemTile(item: item))];
       case _MainTab.consumption:
         return [
           const Text(
             '오늘의 소비',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          ..._records.map(
-            (record) => _AccountRecordTile(record: record),
-          ),
+          ..._records.map((record) => _AccountRecordTile(record: record)),
         ];
     }
   }
@@ -291,10 +302,7 @@ class _ScheduleCard extends StatelessWidget {
           ),
           Text(
             item.timeRange,
-            style: TextStyle(
-              color: item.textColor,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: item.textColor, fontSize: 11),
           ),
         ],
       ),
@@ -309,8 +317,8 @@ class _AccountRecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final amountText = record.amount >= 0
-        ? '+${record.amount.toString()}'
-        : record.amount.toString();
+        ? '+${record.amount}'
+        : '${record.amount}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -357,7 +365,6 @@ class _AccountRecordTile extends StatelessWidget {
 
 class _TodoItemTile extends StatelessWidget {
   final _TodoItem item;
-
   const _TodoItemTile({required this.item});
 
   @override
@@ -383,10 +390,7 @@ class _TodoItemTile extends StatelessWidget {
           Expanded(
             child: Text(
               item.label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.black87,
-              ),
+              style: const TextStyle(fontSize: 12, color: Colors.black87),
             ),
           ),
         ],
@@ -481,12 +485,8 @@ class _ScheduleItem {
     required this.color,
   });
 
-  Color get textColor {
-    if (color.computeLuminance() < 0.5) {
-      return Colors.white;
-    }
-    return Colors.black87;
-  }
+  Color get textColor =>
+      color.computeLuminance() < 0.5 ? Colors.white : Colors.black87;
 }
 
 class _AccountRecord {
