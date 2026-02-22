@@ -37,11 +37,17 @@ class AuthApi {
   }
 
   String _extractToken(Map<String, dynamic>? payload) {
+    final requestOptions = RequestOptions(path: '${ApiConfig.apiPrefix}/auth/login');
+
     if (payload == null) {
       throw DioException.badResponse(
         statusCode: 500,
-        requestOptions: RequestOptions(path: '${ApiConfig.apiPrefix}/auth/login'),
-        response: null,
+        requestOptions: requestOptions,
+        response: Response(
+          requestOptions: requestOptions,
+          statusCode: 500,
+          data: const {'message': 'Empty login response payload'},
+        ),
       );
     }
 
@@ -55,9 +61,9 @@ class AuthApi {
 
     throw DioException.badResponse(
       statusCode: 500,
-      requestOptions: RequestOptions(path: '${ApiConfig.apiPrefix}/auth/login'),
+      requestOptions: requestOptions,
       response: Response(
-        requestOptions: RequestOptions(path: '${ApiConfig.apiPrefix}/auth/login'),
+        requestOptions: requestOptions,
         statusCode: 500,
         data: payload,
       ),
