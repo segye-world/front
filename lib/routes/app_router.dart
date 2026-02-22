@@ -32,8 +32,10 @@ class AppRouter {
           settings: settings,
         );
       case Routes.dayDetail:
+        final args = settings.arguments as DateTime?;
+        final selectedDate = args ?? DateTime.now();
         return MaterialPageRoute(
-          builder: (_) => const DayDetailScreen(),
+          builder: (_) => DayDetailScreen(selectedDate: selectedDate),
           settings: settings,
         );
       case Routes.cashDetail:

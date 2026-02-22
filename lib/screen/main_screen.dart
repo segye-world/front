@@ -145,7 +145,7 @@ class _MainScreenState extends State<MainScreen> {
                               onPressed: () {
                                 Navigator.of(
                                   context,
-                                ).pushNamed(Routes.dayDetail);
+                                ).pushNamed(Routes.dayDetail,arguments: _selectedDate,);
                               },
                             ),
                             const Icon(Icons.notifications_none, size: 18),
