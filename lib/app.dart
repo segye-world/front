@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Cash Diary',
-      initialRoute: Routes.main,
+      initialRoute: Routes.login,
       onGenerateRoute: AppRouter.generateRoute,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
