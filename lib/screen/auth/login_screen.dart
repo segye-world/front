@@ -26,103 +26,97 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: SafeArea(
-        child: Center(
-          child: Container(
-            width: 360,
-            height: 760,
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF7F7F7),
-              border: Border.all(color: const Color(0xFFE7E7E7)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                IconButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.chevron_left, size: 28),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+        // ✅ 요구사항 반영: 카드 박스가 아닌 "화면 전체"를 쓰는 로그인 레이아웃
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.chevron_left, size: 28),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(height: 44),
+              const Center(child: _AuthSymbol()),
+              const SizedBox(height: 42),
+              const Text(
+                '아이디',
+                style: TextStyle(
+                  color: Color(0xFF7886A8),
+                  fontWeight: FontWeight.w700,
                 ),
-                const Spacer(flex: 2),
-                const Center(child: _AuthSymbol()),
-                const Spacer(flex: 2),
-                const Text(
-                  '아이디',
-                  style: TextStyle(
-                    color: Color(0xFF7886A8),
-                    fontWeight: FontWeight.w700,
-                  ),
+              ),
+              const SizedBox(height: 8),
+              _AuthInput(
+                controller: _emailController,
+                hintText: '이메일을 입력해 주세요.',
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                '비밀번호',
+                style: TextStyle(
+                  color: Color(0xFF7886A8),
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 8),
-                _AuthInput(
-                  controller: _emailController,
-                  hintText: '이메일을 입력해 주세요.',
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  '비밀번호',
-                  style: TextStyle(
-                    color: Color(0xFF7886A8),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _AuthInput(
-                  controller: _passwordController,
-                  hintText: '비밀번호를 입력해 주세요.',
-                  obscureText: true,
-                ),
-                const SizedBox(height: 36),
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF3A3A4),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
+              ),
+              const SizedBox(height: 8),
+              _AuthInput(
+                controller: _passwordController,
+                hintText: '비밀번호를 입력해 주세요.',
+                obscureText: true,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF3A3A4),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    elevation: 0,
+                  ),
+                  onPressed: () {
+                    // ✅ 로그인 시 입력한 email을 Main/MyPage로 전달합니다.
+                    Navigator.of(context).pushReplacementNamed(
+                      Routes.main,
+                      arguments: {'loginEmail': _emailController.text.trim()},
+                    );
+                  },
+                  child: const Text(
+                    '로그인',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () {},
+                    child: const Text(
+                      '비밀번호 찾기',
+                      style: TextStyle(color: Color(0xFFB4BAC8)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  TextButton(
                     onPressed: () {
-                      // 데모에서는 메인으로 이동만 수행하고, 이후 API 연동 포인트로 사용합니다.
-                      Navigator.of(context).pushReplacementNamed(Routes.main);
+                      Navigator.of(context).pushNamed(Routes.signup);
                     },
                     child: const Text(
-                      '로그인',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                      '회원가입',
+                      style: TextStyle(color: Color(0xFFB4BAC8)),
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text(
-                        '비밀번호 찾기',
-                        style: TextStyle(color: Color(0xFFB4BAC8)),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pushNamed(Routes.signup);
-                      },
-                      child: const Text(
-                        '회원가입',
-                        style: TextStyle(color: Color(0xFFB4BAC8)),
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(flex: 4),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -185,7 +179,11 @@ class _AuthSymbol extends StatelessWidget {
           end: Alignment.bottomCenter,
         ),
       ),
-      child: const Icon(Icons.calendar_month_outlined, size: 50, color: Color(0xFF2F4B7C)),
+      child: const Icon(
+        Icons.calendar_month_outlined,
+        size: 50,
+        color: Color(0xFF2F4B7C),
+      ),
     );
   }
 }
