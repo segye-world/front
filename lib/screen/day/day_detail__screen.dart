@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../routes/routes.dart';
+import '../../widgets/template/base_scaffold.dart';
+import '../../widgets/template/bottom_nav_layout.dart';
 
 class DayDetailScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -197,20 +198,6 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     });
   }
 
-  void _handleBottomNavTap(int index) {
-    switch (index) {
-      case 0:
-        Navigator.of(context).pushNamed(Routes.cashDetail);
-        break;
-      case 1:
-        Navigator.of(context).pushNamed(Routes.main);
-        break;
-      case 2:
-        Navigator.of(context).pushNamed(Routes.mypage);
-        break;
-    }
-  }
-
   void _prepareAddMode() {
     setState(() {
       _detailMode = _DetailMode.add;
@@ -329,8 +316,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     final width = MediaQuery.sizeOf(context).width;
     final isWide = width >= 820;
 
-    return Scaffold(
+    return BaseScaffold(
       backgroundColor: _surfaceColor,
+      useSafeArea: false,
       appBar: AppBar(
         backgroundColor: const Color(0xFFFFF1F1),
         elevation: 0,
@@ -468,17 +456,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         onPressed: _prepareAddMode,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1,
-        onTap: _handleBottomNavTap,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white,
-        backgroundColor: _accentColor,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.wallet), label: 'CASH'),
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'MYPAGE'),
-        ],
+      bottomNavigationBar: const AppBottomNavBar(
+        currentItem: AppNavItem.home,
+        margin: EdgeInsets.fromLTRB(12, 0, 12, 12),
       ),
     );
   }
