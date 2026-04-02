@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../routes/routes.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  // ✅ 로그인 화면에서 전달된 이메일을 받아 MyPage에 전달하기 위한 필드
+  final String loginEmail;
+
+  const MainScreen({super.key, this.loginEmail = ''});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -17,16 +21,8 @@ class _MainScreenState extends State<MainScreen> {
   _MainTab _selectedTab = _MainTab.schedule;
 
   final List<_ScheduleItem> _scheduleItems = [
-    _ScheduleItem(
-      label: '아침 운동',
-      timeRange: '07:00 - 09:30',
-      color: _primaryPink,
-    ),
-    _ScheduleItem(
-      label: '친구 약속',
-      timeRange: '11:00 - 15:30',
-      color: const Color(0xFF1F1F1F),
-    ),
+    _ScheduleItem(label: '아침 운동', timeRange: '07:00 - 09:30', color: _primaryPink),
+    _ScheduleItem(label: '친구 약속', timeRange: '11:00 - 15:30', color: const Color(0xFF1F1F1F)),
   ];
 
   final List<_AccountRecord> _records = [
@@ -44,13 +40,15 @@ class _MainScreenState extends State<MainScreen> {
 
   DatePickerThemeData _buildDatePickerTheme() {
     return DatePickerThemeData(
-      // ✅ 선택된 날짜: 핑크 원형 + 흰 글자 (Flutter 3.35: WidgetStateProperty)
+      // ✅ 선택된 날짜: 불투명한 원형 배경 + 진한 글자색으로 가시성 개선
       dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return _primaryPink;
+        if (states.contains(WidgetState.selected)) {
+          return _primaryPink.withValues(alpha: 0.45);
+        }
         return null;
       }),
       dayForegroundColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return Colors.white;
+        if (states.contains(WidgetState.selected)) return Colors.black87;
         if (states.contains(WidgetState.disabled)) return Colors.black26;
         return Colors.black87;
       }),
@@ -58,11 +56,10 @@ class _MainScreenState extends State<MainScreen> {
       // ✅ 오늘 날짜: 핑크 테두리 + 글자색
       todayBorder: const BorderSide(width: 1.6, color: _primaryPink),
       todayForegroundColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return Colors.white;
+        if (states.contains(WidgetState.selected)) return Colors.black87;
         return _primaryPink;
       }),
 
-      // ✅ 요일/일자/헤더 스타일(선택 색 가시성에 도움)
       weekdayStyle: const TextStyle(fontSize: 11, color: Colors.black54),
       dayStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       headerForegroundColor: Colors.black87,
@@ -74,7 +71,7 @@ class _MainScreenState extends State<MainScreen> {
     final themed = Theme.of(context).copyWith(
       colorScheme: Theme.of(context).colorScheme.copyWith(
         primary: _primaryPink,
-        onPrimary: Colors.white,
+        onPrimary: Colors.black87,
         onSurface: Colors.black87,
       ),
       datePickerTheme: _buildDatePickerTheme(),
@@ -86,18 +83,12 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           children: [
             const SizedBox(height: 24),
-            Text(
-              _userName,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-            ),
+            Text(_userName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             Expanded(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 18,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
@@ -115,14 +106,12 @@ class _MainScreenState extends State<MainScreen> {
                     Theme(
                       data: themed,
                       child: CalendarDatePicker(
-                        initialDate: _initialDate,
+                        initialDate: _selectedDate,
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2030),
-
-                        // ✅ 선택 날짜 넣지 말고 "진짜 오늘"만 넣기
                         currentDate: DateTime.now(),
-
                         onDateChanged: (date) {
+                          // ✅ 선택 일자 상태를 갱신하여 하단 날짜 텍스트도 동기화
                           setState(() => _selectedDate = date);
                         },
                       ),
@@ -133,19 +122,14 @@ class _MainScreenState extends State<MainScreen> {
                       children: [
                         Text(
                           _formatDate(_selectedDate),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                         ),
                         Row(
                           children: [
                             IconButton(
                               icon: const Icon(Icons.chevron_right, size: 18),
                               onPressed: () {
-                                Navigator.of(
-                                  context,
-                                ).pushNamed(Routes.dayDetail);
+                                Navigator.of(context).pushNamed(Routes.dayDetail);
                               },
                             ),
                             const Icon(Icons.notifications_none, size: 18),
@@ -168,7 +152,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            _BottomNavBar(primaryPink: _primaryPink),
+            _BottomNavBar(primaryPink: _primaryPink, loginEmail: widget.loginEmail),
           ],
         ),
       ),
@@ -183,10 +167,7 @@ class _MainScreenState extends State<MainScreen> {
         return [..._todoItems.map((item) => _TodoItemTile(item: item))];
       case _MainTab.consumption:
         return [
-          const Text(
-            '오늘의 소비',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
+          const Text('오늘의 소비', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ..._records.map((record) => _AccountRecordTile(record: record)),
         ];
@@ -201,11 +182,7 @@ class _CategoryTabs extends StatelessWidget {
   final _MainTab selectedTab;
   final ValueChanged<_MainTab> onTabSelected;
 
-  const _CategoryTabs({
-    required this.primaryPink,
-    required this.selectedTab,
-    required this.onTabSelected,
-  });
+  const _CategoryTabs({required this.primaryPink, required this.selectedTab, required this.onTabSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -242,12 +219,7 @@ class _TabChip extends StatelessWidget {
   final Color activeColor;
   final VoidCallback onTap;
 
-  const _TabChip({
-    required this.label,
-    required this.isActive,
-    required this.activeColor,
-    required this.onTap,
-  });
+  const _TabChip({required this.label, required this.isActive, required this.activeColor, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -257,10 +229,7 @@ class _TabChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
         decoration: BoxDecoration(
           border: Border(
-            bottom: BorderSide(
-              color: isActive ? activeColor : Colors.transparent,
-              width: 2,
-            ),
+            bottom: BorderSide(color: isActive ? activeColor : Colors.transparent, width: 2),
           ),
         ),
         child: Text(
@@ -285,25 +254,15 @@ class _ScheduleCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: item.color,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: item.color, borderRadius: BorderRadius.circular(12)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             item.label,
-            style: TextStyle(
-              color: item.textColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(color: item.textColor, fontSize: 12, fontWeight: FontWeight.w600),
           ),
-          Text(
-            item.timeRange,
-            style: TextStyle(color: item.textColor, fontSize: 11),
-          ),
+          Text(item.timeRange, style: TextStyle(color: item.textColor, fontSize: 11)),
         ],
       ),
     );
@@ -316,35 +275,21 @@ class _AccountRecordTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amountText = record.amount >= 0
-        ? '+${record.amount}'
-        : '${record.amount}';
+    final amountText = record.amount >= 0 ? '+${record.amount}' : '${record.amount}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F8F8),
-        borderRadius: BorderRadius.circular(10),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFFF8F8F8), borderRadius: BorderRadius.circular(10)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                record.title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text(record.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
-              Text(
-                record.category,
-                style: const TextStyle(fontSize: 10, color: Colors.black54),
-              ),
+              Text(record.category, style: const TextStyle(fontSize: 10, color: Colors.black54)),
             ],
           ),
           Text(
@@ -352,9 +297,7 @@ class _AccountRecordTile extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: record.amount >= 0
-                  ? const Color(0xFF1B5E20)
-                  : const Color(0xFFB71C1C),
+              color: record.amount >= 0 ? const Color(0xFF1B5E20) : const Color(0xFFB71C1C),
             ),
           ),
         ],
@@ -372,10 +315,7 @@ class _TodoItemTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFEFEF),
-        borderRadius: BorderRadius.circular(10),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFFFFEFEF), borderRadius: BorderRadius.circular(10)),
       child: Row(
         children: [
           Container(
@@ -387,12 +327,7 @@ class _TodoItemTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              item.label,
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
-            ),
-          ),
+          Expanded(child: Text(item.label, style: const TextStyle(fontSize: 12, color: Colors.black87))),
         ],
       ),
     );
@@ -401,18 +336,16 @@ class _TodoItemTile extends StatelessWidget {
 
 class _BottomNavBar extends StatelessWidget {
   final Color primaryPink;
+  final String loginEmail;
 
-  const _BottomNavBar({required this.primaryPink});
+  const _BottomNavBar({required this.primaryPink, required this.loginEmail});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 56,
       margin: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: primaryPink,
-        borderRadius: BorderRadius.circular(20),
-      ),
+      decoration: BoxDecoration(color: primaryPink, borderRadius: BorderRadius.circular(20)),
       child: Row(
         children: [
           _BottomNavItem(
@@ -423,12 +356,12 @@ class _BottomNavBar extends StatelessWidget {
           _BottomNavItem(
             label: 'HOME',
             isActive: true,
-            onTap: () => Navigator.of(context).pushNamed(Routes.main),
+            onTap: () => Navigator.of(context).pushNamed(Routes.main, arguments: {'loginEmail': loginEmail}),
           ),
           _BottomNavItem(
             label: 'MYPAGE',
             isActive: false,
-            onTap: () => Navigator.of(context).pushNamed(Routes.mypage),
+            onTap: () => Navigator.of(context).pushNamed(Routes.mypage, arguments: {'loginEmail': loginEmail}),
           ),
         ],
       ),
@@ -441,11 +374,7 @@ class _BottomNavItem extends StatelessWidget {
   final bool isActive;
   final VoidCallback onTap;
 
-  const _BottomNavItem({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
+  const _BottomNavItem({required this.label, required this.isActive, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -462,11 +391,7 @@ class _BottomNavItem extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           child: Text(
             label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
           ),
         ),
       ),
@@ -479,14 +404,9 @@ class _ScheduleItem {
   final String timeRange;
   final Color color;
 
-  const _ScheduleItem({
-    required this.label,
-    required this.timeRange,
-    required this.color,
-  });
+  const _ScheduleItem({required this.label, required this.timeRange, required this.color});
 
-  Color get textColor =>
-      color.computeLuminance() < 0.5 ? Colors.white : Colors.black87;
+  Color get textColor => color.computeLuminance() < 0.5 ? Colors.white : Colors.black87;
 }
 
 class _AccountRecord {
@@ -494,11 +414,7 @@ class _AccountRecord {
   final String category;
   final int amount;
 
-  const _AccountRecord({
-    required this.title,
-    required this.category,
-    required this.amount,
-  });
+  const _AccountRecord({required this.title, required this.category, required this.amount});
 }
 
 class _TodoItem {
