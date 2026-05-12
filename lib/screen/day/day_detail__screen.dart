@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../models/account_record_model.dart';
+import '../../services/account_record_api.dart';
+import '../../services/category_api.dart';
+import '../../services/schedule_api.dart';
+import '../../services/todo_api.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -21,9 +26,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   static const _surfaceColor = Color(0xFFFFFBFB);
   static const _panelBorder = Color(0xFFE6DCDD);
 
-  late final List<_ScheduleBlock> _scheduleBlocks;
-  late final List<_TodoSectionState> _sections;
-  late final List<_FinanceEntry> _financeEntries;
+  List<_ScheduleBlock> _scheduleBlocks = [];
+  List<_TodoSectionState> _sections = [];
+  List<_FinanceEntry> _financeEntries = [];
 
   _DetailMode _detailMode = _DetailMode.todo;
   int? _editingSectionId;
@@ -54,72 +59,22 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     Color(0xFFF7D5AF),
   ];
 
-  final List<String> _expenseCategories = const ['식비', '교통비', '취미'];
-  final List<String> _incomeCategories = const ['주말 알바', '용돈', '월급'];
+  List<String> _expenseCategories = ['식비', '교통비', '취미'];
+  List<String> _incomeCategories = ['주말 알바', '용돈', '월급'];
   String _selectedFinanceCategory = '식비';
+
+  // API에서 불러온 카테고리 (categoryId 조회용)
+  List<CategoryModel> _allCategories = [];
+
+  bool _isLoading = true;
+
+  // 섹션 편집 중 레이블이 변경된 todo ID 추적
+  final Set<int> _modifiedTodoIds = {};
 
   @override
   void initState() {
     super.initState();
-    _scheduleBlocks = <_ScheduleBlock>[
-      _ScheduleBlock(
-        id: 1,
-        title: '아침 공부',
-        startHour: 7,
-        endHour: 10,
-        color: const Color(0xFFFFD7D7),
-      ),
-      _ScheduleBlock(
-        id: 2,
-        title: '영어 공부',
-        startHour: 10,
-        endHour: 16,
-        color: const Color(0xFFFFE9CC),
-      ),
-    ];
-
-    _sections = <_TodoSectionState>[
-      _TodoSectionState(
-        id: 1,
-        title: '아침 공부 07:00-09:30',
-        color: const Color(0xFFFFD7D7),
-        items: <_TodoItemState>[
-          _TodoItemState(id: 1, label: '백준 알고리즘 실버 2문제'),
-          _TodoItemState(id: 2, label: '듀오링고 영어 1회차'),
-          _TodoItemState(id: 3, label: '소시구조 8주차 복습'),
-          _TodoItemState(id: 4, label: '운영체제 8주차 복습'),
-        ],
-      ),
-      _TodoSectionState(
-        id: 2,
-        title: '영어 공부 10:00-16:30',
-        color: const Color(0xFFFFE9CC),
-        items: <_TodoItemState>[],
-      ),
-      _TodoSectionState(
-        id: 3,
-        title: '일정 외 할일',
-        color: const Color(0xFFD6D6D6),
-        items: <_TodoItemState>[],
-      ),
-    ];
-
-    _financeEntries = <_FinanceEntry>[
-      _FinanceEntry(
-        title: '스타벅스 보냉컵',
-        amount: -5900,
-        type: _FinanceType.expense,
-        category: '취미',
-        blockTitle: '아침 공부 07:00-09:30',
-      ),
-      _FinanceEntry(
-        title: '용돈',
-        amount: 50000,
-        type: _FinanceType.income,
-        category: '용돈',
-        blockTitle: '아침 공부 07:00-09:30',
-      ),
-    ];
+    _loadData();
   }
 
   @override
@@ -131,26 +86,154 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     super.dispose();
   }
 
+  // ─── 날짜 헬퍼 ──────────────────────────────────────────────
+
+  String get _dateString {
+    final y = widget.selectedDate.year.toString();
+    final m = widget.selectedDate.month.toString().padLeft(2, '0');
+    final d = widget.selectedDate.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
   String get _formattedDate {
     final month = widget.selectedDate.month.toString().padLeft(2, '0');
     final day = widget.selectedDate.day.toString().padLeft(2, '0');
     return '${widget.selectedDate.year}년 $month월 $day일';
   }
 
+  // ─── 데이터 로드 ─────────────────────────────────────────────
+
+  Future<void> _loadData() async {
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      final date = _dateString;
+
+      // 카테고리, 일정, 할일, 가계부를 병렬 시작
+      final catFuture = CategoryApi.fetchAll();
+      final schFuture = ScheduleApi.fetchByDate(date);
+      final todoFuture = TodoApi.fetchByDate(date);
+      final recFuture = AccountRecordApi.fetchByDate(date);
+
+      final categories = await catFuture;
+      final schedules = await schFuture;
+      final todos = await todoFuture;
+      final records = await recFuture;
+
+      // 카테고리
+      _allCategories = categories;
+      final expCats = categories
+          .where((c) => c.type == 'EXPENSE')
+          .map((c) => c.name)
+          .toList();
+      final incCats = categories
+          .where((c) => c.type == 'INCOME')
+          .map((c) => c.name)
+          .toList();
+      _expenseCategories = expCats.isNotEmpty ? expCats : ['기타'];
+      _incomeCategories = incCats.isNotEmpty ? incCats : ['기타'];
+
+      // 일정 블록
+      _scheduleBlocks = schedules
+          .map(
+            (s) => _ScheduleBlock(
+              id: s.id,
+              title: s.title,
+              startHour: s.startHour,
+              endHour: s.endHour,
+              color: _hexToColor(s.colorHex).withValues(alpha: 0.45),
+            ),
+          )
+          .toList();
+
+      // 할일 → 섹션 빌드
+      _sections = schedules.map((s) {
+        final sectionItems = todos
+            .where((t) => t.scheduleId == s.id)
+            .map(
+              (t) =>
+                  _TodoItemState(id: t.id, label: t.label, isDone: t.isDone),
+            )
+            .toList();
+        return _TodoSectionState(
+          id: s.id,
+          title:
+              '${s.title} ${_formatHour(s.startHour.toDouble())}-${_formatHour(s.endHour.toDouble())}',
+          color: _hexToColor(s.colorHex).withValues(alpha: 0.35),
+          items: sectionItems,
+        );
+      }).toList();
+
+      // 일정 외 할일 섹션 (scheduleId == null)
+      final standaloneItems = todos
+          .where((t) => t.scheduleId == null)
+          .map((t) => _TodoItemState(id: t.id, label: t.label, isDone: t.isDone))
+          .toList();
+      _sections.add(
+        _TodoSectionState(
+          id: -1,
+          title: '일정 외 할일',
+          color: const Color(0xFFD6D6D6),
+          items: standaloneItems,
+        ),
+      );
+
+      // 가계부 기록
+      // 친구 백엔드 응답: categoryType(INCOME/EXPENSE), amount(양수)
+      final scheduleMap = {for (final s in schedules) s.id: s};
+      _financeEntries = records.map((r) {
+        final s = r.scheduleId != null ? scheduleMap[r.scheduleId] : null;
+        final blockTitle = s != null
+            ? '${s.title} ${_formatHour(s.startHour.toDouble())}-${_formatHour(s.endHour.toDouble())}'
+            : '일정 외';
+        return _FinanceEntry(
+          title: r.categoryName,
+          amount: r.categoryType == 'INCOME' ? r.amount : -r.amount,
+          type: r.categoryType == 'INCOME'
+              ? _FinanceType.income
+              : _FinanceType.expense,
+          category: r.categoryName,
+          blockTitle: blockTitle,
+        );
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _selectedFinanceCategory = _activeCategories.first;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('데이터 로드 실패: $e')),
+        );
+      }
+    }
+  }
+
+  // ─── 모드 전환 ────────────────────────────────────────────────
+
   void _setMode(_DetailMode mode) {
     setState(() {
       _detailMode = mode;
-      if (mode != _DetailMode.todo) {
-        _editingSectionId = null;
-      }
+      if (mode != _DetailMode.todo) _editingSectionId = null;
     });
   }
 
+  // ─── 할일 CRUD ────────────────────────────────────────────────
+
   void _toggleTodo(int sectionId, int itemId, bool? checked) {
-    final section = _sectionById(sectionId);
-    final item = section.items.firstWhere((element) => element.id == itemId);
-    setState(() {
-      item.isDone = checked ?? false;
+    final newDone = checked ?? false;
+    final item = _sectionById(sectionId).items.firstWhere(
+      (e) => e.id == itemId,
+    );
+    setState(() => item.isDone = newDone);
+
+    // 낙관적 업데이트: 실패 시 되돌림
+    TodoApi.update(itemId, isDone: newDone).catchError((_) {
+      if (mounted) setState(() => item.isDone = !newDone);
     });
   }
 
@@ -164,39 +247,86 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   void _closeEditMode() {
     setState(() {
       _editingSectionId = null;
+      _modifiedTodoIds.clear();
     });
   }
 
   void _updateTodoLabel(int sectionId, int itemId, String value) {
-    final section = _sectionById(sectionId);
-    final item = section.items.firstWhere((element) => element.id == itemId);
+    final item = _sectionById(sectionId).items.firstWhere(
+      (e) => e.id == itemId,
+    );
     item.label = value;
+    _modifiedTodoIds.add(itemId);
   }
 
   void _removeTodo(int sectionId, int itemId) {
     setState(() {
       _sectionById(sectionId).items.removeWhere((item) => item.id == itemId);
     });
+    TodoApi.delete(itemId).catchError((_) {
+      // 삭제 실패 시 전체 재로드
+      if (mounted) _loadData();
+    });
   }
 
   void _addTodoToSection(int sectionId) {
     final text = _newTodoController.text.trim();
     if (text.isEmpty) return;
+    _newTodoController.clear();
+    _createTodo(sectionId, text);
+  }
 
-    setState(() {
-      _sectionById(sectionId).items.add(
-        _TodoItemState(id: DateTime.now().microsecondsSinceEpoch, label: text),
+  Future<void> _createTodo(int sectionId, String text) async {
+    // sectionId == -1 이면 일정 외 할일
+    final scheduleId = sectionId > 0 ? sectionId : null;
+    try {
+      final newTodo = await TodoApi.create(
+        label: text,
+        date: _dateString,
+        scheduleId: scheduleId,
       );
-      _newTodoController.clear();
-    });
+      if (mounted) {
+        setState(() {
+          _sectionById(sectionId).items.add(
+            _TodoItemState(id: newTodo.id, label: text),
+          );
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('할 일 추가에 실패했습니다.')),
+        );
+      }
+    }
   }
 
   void _saveSectionEdits() {
+    final sectionId = _editingSectionId;
     setState(() {
       _editingSectionId = null;
       _newTodoController.clear();
     });
+    if (sectionId != null && _modifiedTodoIds.isNotEmpty) {
+      _flushLabelUpdates(sectionId);
+    }
+    _modifiedTodoIds.clear();
   }
+
+  Future<void> _flushLabelUpdates(int sectionId) async {
+    final section = _sectionById(sectionId);
+    for (final item in section.items) {
+      if (_modifiedTodoIds.contains(item.id)) {
+        try {
+          await TodoApi.update(item.id, label: item.label);
+        } catch (_) {
+          // best-effort
+        }
+      }
+    }
+  }
+
+  // ─── 일정 추가 폼 ─────────────────────────────────────────────
 
   void _prepareAddMode() {
     setState(() {
@@ -211,14 +341,14 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _startHour = 13;
       _endHour = 15;
       _financeType = _FinanceType.expense;
-      _selectedFinanceCategory = _expenseCategories.first;
+      _selectedFinanceCategory =
+          _activeCategories.isNotEmpty ? _activeCategories.first : '';
     });
   }
 
   void _addDraftTodo() {
     final text = _newTodoController.text.trim();
     if (text.isEmpty) return;
-
     setState(() {
       _draftTodos.add(text);
       _newTodoController.clear();
@@ -226,15 +356,14 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   }
 
   void _removeDraftTodo(String todo) {
-    setState(() {
-      _draftTodos.remove(todo);
-    });
+    setState(() => _draftTodos.remove(todo));
   }
 
   void _changeFinanceType(_FinanceType type) {
     setState(() {
       _financeType = type;
-      _selectedFinanceCategory = _activeCategories.first;
+      _selectedFinanceCategory =
+          _activeCategories.isNotEmpty ? _activeCategories.first : '';
     });
   }
 
@@ -246,75 +375,118 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       );
       return;
     }
+    _doSubmitNewSchedule(title);
+  }
 
-    final newSectionId = DateTime.now().millisecondsSinceEpoch;
+  Future<void> _doSubmitNewSchedule(String title) async {
     final start = _startHour.round();
     final end = _endHour.round() <= start ? start + 1 : _endHour.round();
-    final color = _palette[_selectedColorIndex];
+    final colorHex = _colorToHex(_palette[_selectedColorIndex]);
 
-    setState(() {
-      _scheduleBlocks.add(
-        _ScheduleBlock(
-          id: newSectionId,
-          title: title,
-          startHour: start,
-          endHour: end,
-          color: color.withValues(alpha: 0.45),
-        ),
+    try {
+      // 1. 일정 생성
+      final newSchedule = await ScheduleApi.create(
+        title: title,
+        date: _dateString,
+        startHour: start,
+        endHour: end,
+        colorHex: colorHex,
       );
 
-      _sections.insert(
-        _sections.length - 1,
-        _TodoSectionState(
-          id: newSectionId,
-          title:
-              '$title ${_formatHour(_startHour)}-${_formatHour(_endHour)}',
-          color: color.withValues(alpha: 0.35),
-          items: _draftTodos
-              .map(
-                (todo) => _TodoItemState(
-                  id: DateTime.now().microsecondsSinceEpoch + todo.length,
-                  label: todo,
-                ),
-              )
-              .toList(),
-        ),
-      );
-
-      final amount = int.tryParse(_amountController.text.trim());
-      if (amount != null && amount != 0) {
-        final sign = _financeType == _FinanceType.expense ? -1 : 1;
-        _financeEntries.insert(
-          0,
-          _FinanceEntry(
-            title: _memoController.text.trim().isEmpty
-                ? title
-                : _memoController.text.trim(),
-            amount: amount * sign,
-            type: _financeType,
-            category: _selectedFinanceCategory,
-            blockTitle:
-                '$title ${_formatHour(_startHour)}-${_formatHour(_endHour)}',
-          ),
+      // 2. 할일 생성
+      for (final todo in _draftTodos) {
+        await TodoApi.create(
+          label: todo,
+          date: _dateString,
+          scheduleId: newSchedule.id,
         );
       }
 
-      _detailMode = _DetailMode.todo;
-    });
+      // 3. 가계부 기록 생성 (금액이 입력된 경우)
+      // 친구 백엔드는 categoryId + amount(양수) + transactionTime만 받음
+      final amount = int.tryParse(_amountController.text.trim()) ?? 0;
+      if (amount > 0) {
+        final cat = _categoryByName(_selectedFinanceCategory);
+        if (cat != null) {
+          await AccountRecordApi.create(
+            amount: amount,
+            categoryId: cat.id,
+            scheduleId: newSchedule.id,
+            date: _dateString,
+          );
+        }
+      }
+
+      // 4. 데이터 재로드
+      await _loadData();
+      if (mounted) setState(() => _detailMode = _DetailMode.todo);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('일정 추가에 실패했습니다.')),
+        );
+      }
+    }
   }
 
-  List<String> get _activeCategories => _financeType == _FinanceType.expense
-      ? _expenseCategories
-      : _incomeCategories;
+  // ─── 유틸 ─────────────────────────────────────────────────────
+
+  List<String> get _activeCategories =>
+      _financeType == _FinanceType.expense
+          ? _expenseCategories
+          : _incomeCategories;
 
   _TodoSectionState _sectionById(int sectionId) {
-    return _sections.firstWhere((section) => section.id == sectionId);
+    return _sections.firstWhere((s) => s.id == sectionId);
   }
+
+  CategoryModel? _categoryByName(String name) {
+    try {
+      return _allCategories.firstWhere((c) => c.name == name);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ─── Build ────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final isWide = width >= 820;
+
+    Widget content;
+    if (_isLoading) {
+      content = const Center(
+        child: CircularProgressIndicator(color: _accentColor),
+      );
+    } else if (isWide) {
+      content = Row(
+        children: [
+          Expanded(
+            flex: 11,
+            child: _TimeTablePanel(
+              blocks: _scheduleBlocks,
+              onBlockLongPress: _openEditMode,
+            ),
+          ),
+          Expanded(flex: 13, child: _buildDetailPanel()),
+        ],
+      );
+    } else {
+      content = Column(
+        children: [
+          SizedBox(
+            height: 360,
+            child: _TimeTablePanel(
+              blocks: _scheduleBlocks,
+              onBlockLongPress: _openEditMode,
+            ),
+          ),
+          Expanded(child: _buildDetailPanel()),
+        ],
+      );
+    }
 
     return BaseScaffold(
       backgroundColor: _surfaceColor,
@@ -335,122 +507,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: SafeArea(
-        child: isWide
-            ? Row(
-                children: [
-                  Expanded(
-                    flex: 11,
-                    child: _TimeTablePanel(
-                      blocks: _scheduleBlocks,
-                      onBlockLongPress: _openEditMode,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 13,
-                    child: _DetailPanel(
-                      mode: _detailMode,
-                      sections: _sections,
-                      editingSectionId: _editingSectionId,
-                      financeEntries: _financeEntries,
-                      palette: _palette,
-                      selectedColorIndex: _selectedColorIndex,
-                      titleController: _titleController,
-                      amountController: _amountController,
-                      memoController: _memoController,
-                      newTodoController: _newTodoController,
-                      startHour: _startHour,
-                      endHour: _endHour,
-                      financeType: _financeType,
-                      activeCategories: _activeCategories,
-                      selectedFinanceCategory: _selectedFinanceCategory,
-                      draftTodos: _draftTodos,
-                      onModeSelected: _setMode,
-                      onSectionLongPress: _openEditMode,
-                      onTodoChanged: _toggleTodo,
-                      onTodoLabelChanged: _updateTodoLabel,
-                      onTodoDeleted: _removeTodo,
-                      onSectionTodoAdded: _addTodoToSection,
-                      onSectionEditCanceled: _closeEditMode,
-                      onSectionEditSaved: _saveSectionEdits,
-                      onPrepareAddMode: _prepareAddMode,
-                      onDraftTodoAdded: _addDraftTodo,
-                      onDraftTodoRemoved: _removeDraftTodo,
-                      onColorSelected: (index) {
-                        setState(() => _selectedColorIndex = index);
-                      },
-                      onStartHourChanged: (value) {
-                        setState(() => _startHour = value);
-                      },
-                      onEndHourChanged: (value) {
-                        setState(() => _endHour = value);
-                      },
-                      onFinanceTypeChanged: _changeFinanceType,
-                      onFinanceCategoryChanged: (value) {
-                        setState(() => _selectedFinanceCategory = value);
-                      },
-                      onSubmitNewSchedule: _submitNewSchedule,
-                    ),
-                  ),
-                ],
-              )
-            : Column(
-                children: [
-                  SizedBox(
-                    height: 360,
-                    child: _TimeTablePanel(
-                      blocks: _scheduleBlocks,
-                      onBlockLongPress: _openEditMode,
-                    ),
-                  ),
-                  Expanded(
-                    child: _DetailPanel(
-                      mode: _detailMode,
-                      sections: _sections,
-                      editingSectionId: _editingSectionId,
-                      financeEntries: _financeEntries,
-                      palette: _palette,
-                      selectedColorIndex: _selectedColorIndex,
-                      titleController: _titleController,
-                      amountController: _amountController,
-                      memoController: _memoController,
-                      newTodoController: _newTodoController,
-                      startHour: _startHour,
-                      endHour: _endHour,
-                      financeType: _financeType,
-                      activeCategories: _activeCategories,
-                      selectedFinanceCategory: _selectedFinanceCategory,
-                      draftTodos: _draftTodos,
-                      onModeSelected: _setMode,
-                      onSectionLongPress: _openEditMode,
-                      onTodoChanged: _toggleTodo,
-                      onTodoLabelChanged: _updateTodoLabel,
-                      onTodoDeleted: _removeTodo,
-                      onSectionTodoAdded: _addTodoToSection,
-                      onSectionEditCanceled: _closeEditMode,
-                      onSectionEditSaved: _saveSectionEdits,
-                      onPrepareAddMode: _prepareAddMode,
-                      onDraftTodoAdded: _addDraftTodo,
-                      onDraftTodoRemoved: _removeDraftTodo,
-                      onColorSelected: (index) {
-                        setState(() => _selectedColorIndex = index);
-                      },
-                      onStartHourChanged: (value) {
-                        setState(() => _startHour = value);
-                      },
-                      onEndHourChanged: (value) {
-                        setState(() => _endHour = value);
-                      },
-                      onFinanceTypeChanged: _changeFinanceType,
-                      onFinanceCategoryChanged: (value) {
-                        setState(() => _selectedFinanceCategory = value);
-                      },
-                      onSubmitNewSchedule: _submitNewSchedule,
-                    ),
-                  ),
-                ],
-              ),
-      ),
+      body: SafeArea(child: content),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF6F7A9B),
         onPressed: _prepareAddMode,
@@ -462,7 +519,48 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       ),
     );
   }
+
+  Widget _buildDetailPanel() {
+    return _DetailPanel(
+      mode: _detailMode,
+      sections: _sections,
+      editingSectionId: _editingSectionId,
+      financeEntries: _financeEntries,
+      palette: _palette,
+      selectedColorIndex: _selectedColorIndex,
+      titleController: _titleController,
+      amountController: _amountController,
+      memoController: _memoController,
+      newTodoController: _newTodoController,
+      startHour: _startHour,
+      endHour: _endHour,
+      financeType: _financeType,
+      activeCategories: _activeCategories,
+      selectedFinanceCategory: _selectedFinanceCategory,
+      draftTodos: _draftTodos,
+      onModeSelected: _setMode,
+      onSectionLongPress: _openEditMode,
+      onTodoChanged: _toggleTodo,
+      onTodoLabelChanged: _updateTodoLabel,
+      onTodoDeleted: _removeTodo,
+      onSectionTodoAdded: _addTodoToSection,
+      onSectionEditCanceled: _closeEditMode,
+      onSectionEditSaved: _saveSectionEdits,
+      onPrepareAddMode: _prepareAddMode,
+      onDraftTodoAdded: _addDraftTodo,
+      onDraftTodoRemoved: _removeDraftTodo,
+      onColorSelected: (index) => setState(() => _selectedColorIndex = index),
+      onStartHourChanged: (value) => setState(() => _startHour = value),
+      onEndHourChanged: (value) => setState(() => _endHour = value),
+      onFinanceTypeChanged: _changeFinanceType,
+      onFinanceCategoryChanged: (value) =>
+          setState(() => _selectedFinanceCategory = value),
+      onSubmitNewSchedule: _submitNewSchedule,
+    );
+  }
 }
+
+// ─── 위젯 클래스 (변경 없음) ──────────────────────────────────────
 
 class _TimeTablePanel extends StatelessWidget {
   final List<_ScheduleBlock> blocks;
@@ -488,13 +586,17 @@ class _TimeTablePanel extends StatelessWidget {
           final block = _blockForHour(index);
 
           return GestureDetector(
-            onLongPress: block == null ? null : () => onBlockLongPress(block.id),
+            onLongPress:
+                block == null ? null : () => onBlockLongPress(block.id),
             child: Container(
               height: 28,
               decoration: BoxDecoration(
                 color: block?.color,
                 border: Border(
-                  top: BorderSide(color: Colors.blueGrey.shade200, width: 0.8),
+                  top: BorderSide(
+                    color: Colors.blueGrey.shade200,
+                    width: 0.8,
+                  ),
                 ),
               ),
               child: Row(
@@ -541,9 +643,7 @@ class _TimeTablePanel extends StatelessWidget {
 
   _ScheduleBlock? _blockForHour(int hour) {
     for (final block in blocks) {
-      if (hour >= block.startHour && hour < block.endHour) {
-        return block;
-      }
+      if (hour >= block.startHour && hour < block.endHour) return block;
     }
     return null;
   }
@@ -570,7 +670,7 @@ class _DetailPanel extends StatelessWidget {
   final ValueChanged<int> onSectionLongPress;
   final void Function(int sectionId, int itemId, bool? checked) onTodoChanged;
   final void Function(int sectionId, int itemId, String value)
-      onTodoLabelChanged;
+  onTodoLabelChanged;
   final void Function(int sectionId, int itemId) onTodoDeleted;
   final ValueChanged<int> onSectionTodoAdded;
   final VoidCallback onSectionEditCanceled;
@@ -639,40 +739,41 @@ class _DetailPanel extends StatelessWidget {
           Expanded(
             child: switch (mode) {
               _DetailMode.todo => _TodoPanel(
-                  sections: sections,
-                  editingSectionId: editingSectionId,
-                  newTodoController: newTodoController,
-                  onSectionLongPress: onSectionLongPress,
-                  onTodoChanged: onTodoChanged,
-                  onTodoLabelChanged: onTodoLabelChanged,
-                  onTodoDeleted: onTodoDeleted,
-                  onSectionTodoAdded: onSectionTodoAdded,
-                  onSectionEditCanceled: onSectionEditCanceled,
-                  onSectionEditSaved: onSectionEditSaved,
-                ),
-              _DetailMode.finance => _FinancePanel(entries: financeEntries),
+                sections: sections,
+                editingSectionId: editingSectionId,
+                newTodoController: newTodoController,
+                onSectionLongPress: onSectionLongPress,
+                onTodoChanged: onTodoChanged,
+                onTodoLabelChanged: onTodoLabelChanged,
+                onTodoDeleted: onTodoDeleted,
+                onSectionTodoAdded: onSectionTodoAdded,
+                onSectionEditCanceled: onSectionEditCanceled,
+                onSectionEditSaved: onSectionEditSaved,
+              ),
+              _DetailMode.finance =>
+                _FinancePanel(entries: financeEntries),
               _DetailMode.add => _ScheduleAddPanel(
-                  palette: palette,
-                  selectedColorIndex: selectedColorIndex,
-                  titleController: titleController,
-                  amountController: amountController,
-                  memoController: memoController,
-                  todoController: newTodoController,
-                  startHour: startHour,
-                  endHour: endHour,
-                  financeType: financeType,
-                  activeCategories: activeCategories,
-                  selectedFinanceCategory: selectedFinanceCategory,
-                  draftTodos: draftTodos,
-                  onColorSelected: onColorSelected,
-                  onStartHourChanged: onStartHourChanged,
-                  onEndHourChanged: onEndHourChanged,
-                  onFinanceTypeChanged: onFinanceTypeChanged,
-                  onFinanceCategoryChanged: onFinanceCategoryChanged,
-                  onDraftTodoAdded: onDraftTodoAdded,
-                  onDraftTodoRemoved: onDraftTodoRemoved,
-                  onSubmit: onSubmitNewSchedule,
-                ),
+                palette: palette,
+                selectedColorIndex: selectedColorIndex,
+                titleController: titleController,
+                amountController: amountController,
+                memoController: memoController,
+                todoController: newTodoController,
+                startHour: startHour,
+                endHour: endHour,
+                financeType: financeType,
+                activeCategories: activeCategories,
+                selectedFinanceCategory: selectedFinanceCategory,
+                draftTodos: draftTodos,
+                onColorSelected: onColorSelected,
+                onStartHourChanged: onStartHourChanged,
+                onEndHourChanged: onEndHourChanged,
+                onFinanceTypeChanged: onFinanceTypeChanged,
+                onFinanceCategoryChanged: onFinanceCategoryChanged,
+                onDraftTodoAdded: onDraftTodoAdded,
+                onDraftTodoRemoved: onDraftTodoRemoved,
+                onSubmit: onSubmitNewSchedule,
+              ),
             },
           ),
         ],
@@ -704,7 +805,8 @@ class _PanelTabs extends StatelessWidget {
             color: isActive ? Colors.white : const Color(0xFFF5F0F0),
             border: Border(
               bottom: BorderSide(
-                color: isActive ? const Color(0xFF6F7A9B) : Colors.transparent,
+                color:
+                    isActive ? const Color(0xFF6F7A9B) : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -741,7 +843,7 @@ class _TodoPanel extends StatelessWidget {
   final ValueChanged<int> onSectionLongPress;
   final void Function(int sectionId, int itemId, bool? checked) onTodoChanged;
   final void Function(int sectionId, int itemId, String value)
-      onTodoLabelChanged;
+  onTodoLabelChanged;
   final void Function(int sectionId, int itemId) onTodoDeleted;
   final ValueChanged<int> onSectionTodoAdded;
   final VoidCallback onSectionEditCanceled;
@@ -948,7 +1050,10 @@ class _FinancePanel extends StatelessWidget {
               Container(
                 width: double.infinity,
                 color: const Color(0xFFF6B7B7),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 child: Text(
                   group.key,
                   style: const TextStyle(
@@ -961,7 +1066,10 @@ class _FinancePanel extends StatelessWidget {
               ...group.value.map(
                 (entry) => ListTile(
                   dense: true,
-                  title: Text(entry.title, style: const TextStyle(fontSize: 12)),
+                  title: Text(
+                    entry.title,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   subtitle: Text(
                     entry.category,
                     style: const TextStyle(fontSize: 11),
@@ -1228,6 +1336,8 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
+// ─── 데이터 클래스 ────────────────────────────────────────────────
+
 class _ScheduleBlock {
   final int id;
   final String title;
@@ -1263,11 +1373,7 @@ class _TodoItemState {
   String label;
   bool isDone;
 
-  _TodoItemState({
-    required this.id,
-    required this.label,
-    this.isDone = false,
-  });
+  _TodoItemState({required this.id, required this.label, this.isDone = false});
 }
 
 class _FinanceEntry {
@@ -1286,6 +1392,8 @@ class _FinanceEntry {
   });
 }
 
+// ─── 전역 헬퍼 ────────────────────────────────────────────────────
+
 String _formatHour(double hour) {
   final rounded = hour.round().toString().padLeft(2, '0');
   return '$rounded:00';
@@ -1295,4 +1403,16 @@ String _formatAmount(int amount) {
   final sign = amount >= 0 ? '+' : '-';
   final number = amount.abs().toString();
   return '$sign$number';
+}
+
+Color _hexToColor(String hex) {
+  final clean = hex.replaceAll('#', '');
+  final value = int.parse(clean.length == 6 ? 'FF$clean' : clean, radix: 16);
+  return Color(value);
+}
+
+String _colorToHex(Color color) {
+  // toARGB32() → 상위 FF(alpha) 제거하고 RGB 6자리 반환
+  final rgb = color.toARGB32() & 0xFFFFFF;
+  return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
 }
