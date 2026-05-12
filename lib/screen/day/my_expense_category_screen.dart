@@ -12,9 +12,10 @@ class MyExpenseCategoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repository = MockErdRepository.instance;
-    final memberId = repository.currentMember.id;
-    final categories = repository.categories;
-    final paymentMethods = repository.paymentMethodsByMember(memberId);
+    // ✅ 설정 화면의 지출 수단/카테고리도 로그인 회원 id 기준으로만 표시합니다.
+    final id = repository.idForEmail(loginEmail);
+    final categories = repository.categoriesById(id);
+    final paymentMethods = repository.paymentMethodsById(id);
 
     return BaseScaffold(
       title: '지출 수단 및 카테고리',
@@ -30,7 +31,7 @@ class MyExpenseCategoryScreen extends StatelessWidget {
                 const SizedBox(height: 20),
                 const _SectionTitle(title: '지불수단'),
                 // ✅ ERD의 PaymentMethod 데이터를 목데이터로 표시하며, 백엔드 연동 시 실제 CRUD 응답으로 대체됩니다.
-                ...paymentMethods.map((method) => _SettingRow(title: method.name, subtitle: 'memberId: ${method.memberId}')),
+                ...paymentMethods.map((method) => _SettingRow(title: method.name, subtitle: 'id: ${method.id}')),
               ],
             ),
           ),
