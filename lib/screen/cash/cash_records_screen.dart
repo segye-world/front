@@ -32,7 +32,9 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final records = _repository.accountRecordsByMonth(_visibleMonth, type: _filter.type);
+    // ✅ 현재 화면의 로그인 이메일에서 회원 고유번호(id)를 확인해 전체보기 거래도 회원별로 분리합니다.
+    final id = _repository.idForEmail(widget.loginEmail);
+    final records = _repository.accountRecordsByMonth(_visibleMonth, type: _filter.type, id: id);
     final grouped = _groupRecordsByCategory(records);
 
     return Scaffold(
