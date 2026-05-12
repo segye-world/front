@@ -32,13 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                onPressed: () => Navigator.of(context).maybePop(),
-                icon: const Icon(Icons.chevron_left, size: 28),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(height: 44),
+              // ✅ 요구사항 반영: 로그인 페이지 상단 뒤로가기 버튼 제거
+              const SizedBox(height: 56),
               const Center(child: _AuthSymbol()),
               const SizedBox(height: 42),
               const Text(

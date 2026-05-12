@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../routes/routes.dart';
+import '../widgets/template/bottom_nav_layout.dart';
 
 class MainScreen extends StatefulWidget {
   // ✅ 로그인 화면에서 전달된 이메일을 받아 MyPage에 전달하기 위한 필드
@@ -129,7 +130,10 @@ class _MainScreenState extends State<MainScreen> {
                             IconButton(
                               icon: const Icon(Icons.chevron_right, size: 18),
                               onPressed: () {
-                                Navigator.of(context).pushNamed(Routes.dayDetail);
+                                Navigator.of(context).pushNamed(
+                                  Routes.dayDetail,
+                                  arguments: {'loginEmail': widget.loginEmail},
+                                );
                               },
                             ),
                             const Icon(Icons.notifications_none, size: 18),
@@ -152,7 +156,8 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            _BottomNavBar(primaryPink: _primaryPink, loginEmail: widget.loginEmail),
+            // ✅ 메인/마이페이지/기타 화면에서 같은 하단 탭을 사용합니다.
+            BottomNavLayout(loginEmail: widget.loginEmail, currentTab: BottomNavType.home),
           ],
         ),
       ),
@@ -329,71 +334,6 @@ class _TodoItemTile extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(child: Text(item.label, style: const TextStyle(fontSize: 12, color: Colors.black87))),
         ],
-      ),
-    );
-  }
-}
-
-class _BottomNavBar extends StatelessWidget {
-  final Color primaryPink;
-  final String loginEmail;
-
-  const _BottomNavBar({required this.primaryPink, required this.loginEmail});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 56,
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(color: primaryPink, borderRadius: BorderRadius.circular(20)),
-      child: Row(
-        children: [
-          _BottomNavItem(
-            label: 'CASH',
-            isActive: false,
-            onTap: () => Navigator.of(context).pushNamed(Routes.cashDetail),
-          ),
-          _BottomNavItem(
-            label: 'HOME',
-            isActive: true,
-            onTap: () => Navigator.of(context).pushNamed(Routes.main, arguments: {'loginEmail': loginEmail}),
-          ),
-          _BottomNavItem(
-            label: 'MYPAGE',
-            isActive: false,
-            onTap: () => Navigator.of(context).pushNamed(Routes.mypage, arguments: {'loginEmail': loginEmail}),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BottomNavItem extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _BottomNavItem({required this.label, required this.isActive, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFF7A5A5) : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
-          ),
-        ),
       ),
     );
   }

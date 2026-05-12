@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../routes/routes.dart';
+import '../../widgets/template/bottom_nav_layout.dart';
+
 class MyPageScreen extends StatelessWidget {
   final String loginEmail;
 
@@ -7,7 +10,7 @@ class MyPageScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 로그인 이메일을 id처럼 활용하기 위해 @ 앞부분을 이름으로 변환
+    // ✅ 로그인 이메일을 아이디/이메일 표시에 재사용합니다.
     final displayId = loginEmail.isEmpty ? '김' : loginEmail.split('@').first;
     final displayEmail = loginEmail.isEmpty ? 'email.com' : loginEmail;
 
@@ -19,21 +22,15 @@ class MyPageScreen extends StatelessWidget {
             Container(
               height: 44,
               color: const Color(0xFFFBEFEF),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Color(0xFFE59A9A)),
-                    onPressed: () => Navigator.of(context).maybePop(),
+              child: const Center(
+                child: Text(
+                  'MY PAGE',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF4F5E82),
                   ),
-                  const Expanded(
-                    child: Text(
-                      'MY PAGE',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF4F5E82)),
-                    ),
-                  ),
-                  const SizedBox(width: 48),
-                ],
+                ),
               ),
             ),
             Expanded(
@@ -71,39 +68,72 @@ class MyPageScreen extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               displayEmail,
-                              style: const TextStyle(color: Color(0xFFBABABA), fontSize: 12),
+                              style: const TextStyle(
+                                color: Color(0xFFBABABA),
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
                       ],
                     ),
                     const SizedBox(height: 26),
-                    const _MenuRow(icon: Icons.access_time_rounded, label: '지출 수단 및 카테고리'),
-                    const _MenuRow(icon: Icons.favorite_border, label: '내 정보 관리'),
-                    const _MenuRow(icon: Icons.settings_outlined, label: '알림 설정'),
-                    const _MenuRow(icon: Icons.help_outline, label: 'FAQ'),
+                    _MenuRow(
+                      icon: Icons.access_time_rounded,
+                      label: '지출 수단 및 카테고리',
+                      onTap: () => Navigator.of(context).pushNamed(
+                        Routes.myExpenseCategory,
+                        arguments: {'loginEmail': loginEmail},
+                      ),
+                    ),
+                    _MenuRow(
+                      icon: Icons.favorite_border,
+                      label: '내 정보 관리',
+                      onTap: () => Navigator.of(context).pushNamed(
+                        Routes.myProfile,
+                        arguments: {'loginEmail': loginEmail},
+                      ),
+                    ),
+                    _MenuRow(
+                      icon: Icons.settings_outlined,
+                      label: '알림 설정',
+                      onTap: () => Navigator.of(context).pushNamed(
+                        Routes.myNotification,
+                        arguments: {'loginEmail': loginEmail},
+                      ),
+                    ),
+                    _MenuRow(
+                      icon: Icons.help_outline,
+                      label: 'FAQ',
+                      onTap: () => Navigator.of(context).pushNamed(
+                        Routes.myFaq,
+                        arguments: {'loginEmail': loginEmail},
+                      ),
+                    ),
                     const SizedBox(height: 24),
-                    const _ActionRow(label: '로그아웃', color: Color(0xFF616161)),
+                    _ActionRow(
+                      label: '로그아웃',
+                      color: const Color(0xFF616161),
+                      onTap: () {
+                        // ✅ 로그아웃 시 로그인 페이지만 남기고 스택을 정리합니다.
+                        Navigator.of(context).pushNamedAndRemoveUntil(
+                          Routes.login,
+                          (route) => false,
+                        );
+                      },
+                    ),
                     const SizedBox(height: 14),
-                    const _ActionRow(label: '탈퇴하기', color: Color(0xFFE58787)),
+                    const _ActionRow(
+                      label: '탈퇴하기',
+                      color: Color(0xFFE58787),
+                    ),
                   ],
                 ),
               ),
             ),
-            Container(
-              height: 56,
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7A5A5),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Row(
-                children: [
-                  _BottomMenu(label: 'CASH'),
-                  _BottomMenu(label: 'HOME'),
-                  _BottomMenu(label: 'MYPAGE'),
-                ],
-              ),
+            BottomNavLayout(
+              loginEmail: loginEmail,
+              currentTab: BottomNavType.myPage,
             ),
           ],
         ),
@@ -115,19 +145,33 @@ class MyPageScreen extends StatelessWidget {
 class _MenuRow extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
-  const _MenuRow({required this.icon, required this.label});
+  const _MenuRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: const Color(0xFF8B97B0)),
-          const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Color(0xFF4F4F4F))),
-        ],
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: const Color(0xFF8B97B0)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(color: Color(0xFF4F4F4F)),
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 16, color: Color(0xFFB0B8C8)),
+          ],
+        ),
       ),
     );
   }
@@ -136,38 +180,20 @@ class _MenuRow extends StatelessWidget {
 class _ActionRow extends StatelessWidget {
   final String label;
   final Color color;
+  final VoidCallback? onTap;
 
-  const _ActionRow({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Icon(Icons.logout, size: 15, color: Color(0xFF8B97B0)),
-        const SizedBox(width: 12),
-        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
-      ],
-    );
-  }
-}
-
-class _BottomMenu extends StatelessWidget {
-  final String label;
-
-  const _BottomMenu({required this.label});
+  const _ActionRow({required this.label, required this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          border: Border(right: BorderSide(color: Colors.white54, width: 1)),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-        ),
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          const Icon(Icons.logout, size: 15, color: Color(0xFF8B97B0)),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+        ],
       ),
     );
   }

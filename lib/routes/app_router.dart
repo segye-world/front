@@ -4,6 +4,10 @@ import '../screen/auth/login_screen.dart';
 import '../screen/auth/sighup_screen.dart';
 import '../screen/cash/cash_detail__screen.dart';
 import '../screen/day/day_detail__screen.dart';
+import '../screen/day/my_expense_category_screen.dart';
+import '../screen/day/my_faq_screen.dart';
+import '../screen/day/my_notification_setting_screen.dart';
+import '../screen/day/my_profile_manage_screen.dart';
 import '../screen/main_screen.dart';
 import '../screen/my/mypage_screen.dart';
 import '../screen/start/start_screen.dart';
@@ -28,12 +32,40 @@ class AppRouter {
           settings: settings,
         );
       case Routes.dayDetail:
-        return MaterialPageRoute(builder: (_) => const DayDetailScreen(), settings: settings);
+        return MaterialPageRoute(
+          builder: (_) => DayDetailScreen(loginEmail: loginEmail),
+          settings: settings,
+        );
       case Routes.cashDetail:
-        return MaterialPageRoute(builder: (_) => const CashDetailScreen(), settings: settings);
+        return MaterialPageRoute(
+          builder: (_) => CashDetailScreen(loginEmail: loginEmail),
+          settings: settings,
+        );
       case Routes.mypage:
         return MaterialPageRoute(
           builder: (_) => MyPageScreen(loginEmail: loginEmail),
+          settings: settings,
+        );
+
+      // ✅ 마이페이지 메뉴별 상세 화면 라우트
+      case Routes.myExpenseCategory:
+        return MaterialPageRoute(
+          builder: (_) => MyExpenseCategoryScreen(loginEmail: loginEmail),
+          settings: settings,
+        );
+      case Routes.myProfile:
+        return MaterialPageRoute(
+          builder: (_) => MyProfileManageScreen(loginEmail: loginEmail),
+          settings: settings,
+        );
+      case Routes.myNotification:
+        return MaterialPageRoute(
+          builder: (_) => MyNotificationSettingScreen(loginEmail: loginEmail),
+          settings: settings,
+        );
+      case Routes.myFaq:
+        return MaterialPageRoute(
+          builder: (_) => MyFaqScreen(loginEmail: loginEmail),
           settings: settings,
         );
 
