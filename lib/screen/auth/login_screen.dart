@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/mock_erd_repository.dart';
 import '../../routes/routes.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -76,10 +77,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     elevation: 0,
                   ),
                   onPressed: () {
+                    final loginEmail = _emailController.text.trim();
+                    // ✅ 로그인은 아이디(이메일)와 비밀번호가 모두 맞을 때만 회원 고유번호(id)를 확정합니다.
+                    final member = MockErdRepository.instance.login(loginEmail, _passwordController.text);
+                    if (member == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('아이디 또는 비밀번호가 올바르지 않습니다.')),
+                      );
+                      return;
+                    }
+
                     // ✅ 로그인 시 입력한 email을 Main/MyPage로 전달합니다.
                     Navigator.of(context).pushReplacementNamed(
                       Routes.main,
-                      arguments: {'loginEmail': _emailController.text.trim()},
+                      arguments: {'loginEmail': loginEmail},
                     );
                   },
                   child: const Text(

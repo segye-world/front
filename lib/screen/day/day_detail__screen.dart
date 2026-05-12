@@ -13,7 +13,10 @@ class DayDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final date = DateUtils.dateOnly(selectedDate ?? DateTime.now());
-    final schedules = MockErdRepository.instance.schedulesByDate(date);
+    final repository = MockErdRepository.instance;
+    // ✅ 상세 일정 목록도 로그인 회원 고유번호(id)로 필터링합니다.
+    final id = repository.idForEmail(loginEmail);
+    final schedules = repository.schedulesByDate(date, id: id);
 
     return BaseScaffold(
       title: 'Day Detail',

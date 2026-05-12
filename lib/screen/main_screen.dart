@@ -159,9 +159,11 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   List<Widget> _buildTabContent() {
-    final schedules = _repository.schedulesByDate(_selectedDate);
-    final tasks = _repository.tasksByDate(_selectedDate);
-    final records = _repository.accountRecordsByDate(_selectedDate);
+    // ✅ 로그인 이메일로 회원 고유번호(id)를 찾아 일정/할 일/소비 항목을 모두 회원별로 조회합니다.
+    final id = _repository.idForEmail(widget.loginEmail);
+    final schedules = _repository.schedulesByDate(_selectedDate, id: id);
+    final tasks = _repository.tasksByDate(_selectedDate, id: id);
+    final records = _repository.accountRecordsByDate(_selectedDate, id: id);
 
     switch (_selectedTab) {
       case _MainTab.schedule:
@@ -260,7 +262,7 @@ class _ScheduleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeRange = '${_formatTime(item.schedule.startTime)} - ${_formatTime(item.schedule.endTime)}';
-    final color = item.schedule.id.isOdd ? _MainScreenState._primaryPink : const Color(0xFF1F1F1F);
+    final color = item.schedule.scheduleId.isOdd ? _MainScreenState._primaryPink : const Color(0xFF1F1F1F);
     final textColor = color.computeLuminance() < 0.5 ? Colors.white : Colors.black87;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),

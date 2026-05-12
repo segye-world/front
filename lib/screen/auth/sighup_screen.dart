@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/mock_erd_repository.dart';
 import '../../routes/routes.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -34,6 +35,9 @@ class _SignupScreenState extends State<SignupScreen> {
       );
       return;
     }
+
+    // ✅ 가입한 회원도 즉시 고유 id를 발급해 이후 항목이 회원별로 분리되도록 합니다.
+    MockErdRepository.instance.registerMember(_emailController.text.trim(), password);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('회원가입이 완료되었습니다. 로그인해 주세요.')),

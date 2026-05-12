@@ -21,10 +21,12 @@ class CashDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final repository = MockErdRepository.instance;
     final now = DateTime.now();
-    final recentRecords = repository.sortedAccountRecordViews().take(4).toList(growable: false);
-    final expenseTotals = repository.monthlyExpenseTotalsByCategory(now);
-    final todayIncome = repository.todayTotalByType('INCOME');
-    final todayExpense = repository.todayTotalByType('EXPENSE');
+    // ✅ 로그인 회원 고유번호(id)를 모든 현금/소비 요약 조회에 전달합니다.
+    final id = repository.idForEmail(loginEmail);
+    final recentRecords = repository.sortedAccountRecordViews(id: id).take(4).toList(growable: false);
+    final expenseTotals = repository.monthlyExpenseTotalsByCategory(now, id: id);
+    final todayIncome = repository.todayTotalByType('INCOME', id: id);
+    final todayExpense = repository.todayTotalByType('EXPENSE', id: id);
 
     return Scaffold(
       backgroundColor: Colors.white,
