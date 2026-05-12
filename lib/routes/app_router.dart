@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screen/auth/login_screen.dart';
 import '../screen/auth/sighup_screen.dart';
 import '../screen/cash/cash_detail__screen.dart';
+import '../screen/cash/cash_records_screen.dart';
 import '../screen/day/day_detail__screen.dart';
 import '../screen/day/my_expense_category_screen.dart';
 import '../screen/day/my_faq_screen.dart';
@@ -41,6 +42,11 @@ class AppRouter {
       case Routes.cashDetail:
         return MaterialPageRoute(
           builder: (_) => CashDetailScreen(loginEmail: loginEmail),
+          settings: settings,
+        );
+      case Routes.cashRecords:
+        return MaterialPageRoute(
+          builder: (_) => CashRecordsScreen(loginEmail: loginEmail),
           settings: settings,
         );
       case Routes.mypage:
