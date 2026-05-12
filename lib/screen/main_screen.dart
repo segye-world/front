@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../data/mock_backend_data.dart';
 import '../routes/routes.dart';
 
 class MainScreen extends StatefulWidget {
@@ -9,42 +11,21 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  static const _userName = '세계';
   static const _primaryPink = Color(0xFFF7A5A5);
-  static final DateTime _initialDate = DateTime(2025, 9, 9);
 
-  late DateTime _selectedDate = _initialDate;
+  // 앱에 새로 진입하면 홈 캘린더가 항상 오늘 날짜를 선택하도록 초기화합니다.
+  late DateTime _selectedDate = _dateOnly(DateTime.now());
   _MainTab _selectedTab = _MainTab.schedule;
 
-  final List<_ScheduleItem> _scheduleItems = [
-    _ScheduleItem(
-      label: '아침 운동',
-      timeRange: '07:00 - 09:30',
-      color: _primaryPink,
-    ),
-    _ScheduleItem(
-      label: '친구 약속',
-      timeRange: '11:00 - 15:30',
-      color: const Color(0xFF1F1F1F),
-    ),
-  ];
-
-  final List<_AccountRecord> _records = [
-    _AccountRecord(title: '월급', category: '수입', amount: 3200000),
-    _AccountRecord(title: '점심', category: '지출', amount: -12000),
-    _AccountRecord(title: '교통', category: '지출', amount: -3500),
-  ];
-
-  final List<_TodoItem> _todoItems = [
-    _TodoItem(label: '백준 알고리즘 실버 2문제'),
-    _TodoItem(label: '두잉코딩 영어 1일차'),
-  ];
+  // 시간 값 때문에 같은 날짜 비교가 어긋나지 않도록 날짜만 남깁니다.
+  static DateTime _dateOnly(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
 
   String _formatDate(DateTime date) => '${date.month}월 ${date.day}일';
 
   DatePickerThemeData _buildDatePickerTheme() {
     return DatePickerThemeData(
-      // ✅ 선택된 날짜: 핑크 원형 + 흰 글자 (Flutter 3.35: WidgetStateProperty)
+      // 선택된 날짜는 글씨색만 바꾸지 않고 배경색을 채워 사용자가 선택 이동을 명확히 볼 수 있게 합니다.
       dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return _primaryPink;
         return null;
@@ -54,15 +35,11 @@ class _MainScreenState extends State<MainScreen> {
         if (states.contains(WidgetState.disabled)) return Colors.black26;
         return Colors.black87;
       }),
-
-      // ✅ 오늘 날짜: 핑크 테두리 + 글자색
-      todayBorder: const BorderSide(width: 1.6, color: _primaryPink),
+      todayBorder: const BorderSide(width: 1.4, color: _primaryPink),
       todayForegroundColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return Colors.white;
         return _primaryPink;
       }),
-
-      // ✅ 요일/일자/헤더 스타일(선택 색 가시성에 도움)
       weekdayStyle: const TextStyle(fontSize: 11, color: Colors.black54),
       dayStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       headerForegroundColor: Colors.black87,
@@ -73,10 +50,10 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final themed = Theme.of(context).copyWith(
       colorScheme: Theme.of(context).colorScheme.copyWith(
-        primary: _primaryPink,
-        onPrimary: Colors.white,
-        onSurface: Colors.black87,
-      ),
+            primary: _primaryPink,
+            onPrimary: Colors.white,
+            onSurface: Colors.black87,
+          ),
       datePickerTheme: _buildDatePickerTheme(),
     );
 
@@ -87,7 +64,7 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             const SizedBox(height: 24),
             Text(
-              _userName,
+              MockBackendData.currentMember.nickname,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
@@ -115,15 +92,13 @@ class _MainScreenState extends State<MainScreen> {
                     Theme(
                       data: themed,
                       child: CalendarDatePicker(
-                        initialDate: _initialDate,
+                        // 선택 날짜를 상태로 관리해서 다른 날짜를 누르면 핑크 배경도 해당 날짜로 이동합니다.
+                        initialDate: _selectedDate,
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2030),
-
-                        // ✅ 선택 날짜 넣지 말고 "진짜 오늘"만 넣기
-                        currentDate: DateTime.now(),
-
+                        currentDate: _dateOnly(DateTime.now()),
                         onDateChanged: (date) {
-                          setState(() => _selectedDate = date);
+                          setState(() => _selectedDate = _dateOnly(date));
                         },
                       ),
                     ),
@@ -143,9 +118,10 @@ class _MainScreenState extends State<MainScreen> {
                             IconButton(
                               icon: const Icon(Icons.chevron_right, size: 18),
                               onPressed: () {
-                                Navigator.of(
-                                  context,
-                                ).pushNamed(Routes.dayDetail);
+                                Navigator.of(context).pushNamed(
+                                  Routes.dayDetail,
+                                  arguments: _selectedDate,
+                                );
                               },
                             ),
                             const Icon(Icons.notifications_none, size: 18),
@@ -176,19 +152,28 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   List<Widget> _buildTabContent() {
+    // TODO(backend): 아래 조회는 임시 목데이터 필터링이므로 백엔드 API 호출로 교체해야 합니다.
+    final schedules = MockBackendData.schedulesByDate(_selectedDate);
+    final tasks = MockBackendData.tasksByDate(_selectedDate);
+    final records = MockBackendData.accountRecordsByDate(_selectedDate);
+
     switch (_selectedTab) {
       case _MainTab.schedule:
-        return [..._scheduleItems.map((item) => _ScheduleCard(item: item))];
+        if (schedules.isEmpty) return [_EmptyState(message: '등록된 일정이 없어요')];
+        return schedules
+            .asMap()
+            .entries
+            .map((entry) => _ScheduleCard(schedule: entry.value, index: entry.key))
+            .toList();
       case _MainTab.todo:
-        return [..._todoItems.map((item) => _TodoItemTile(item: item))];
+        if (tasks.isEmpty) return [_EmptyState(message: '등록된 할 일이 없어요')];
+        return tasks.map((task) => _TodoItemTile(task: task)).toList();
       case _MainTab.consumption:
         return [
-          const Text(
-            '오늘의 소비',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
+          const Text('오늘의 소비', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          ..._records.map((record) => _AccountRecordTile(record: record)),
+          if (records.isEmpty) const _EmptyState(message: '등록된 수입/지출 내역이 없어요'),
+          ...records.map((record) => _AccountRecordTile(record: record)),
         ];
     }
   }
@@ -257,10 +242,7 @@ class _TabChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
         decoration: BoxDecoration(
           border: Border(
-            bottom: BorderSide(
-              color: isActive ? activeColor : Colors.transparent,
-              width: 2,
-            ),
+            bottom: BorderSide(color: isActive ? activeColor : Colors.transparent, width: 2),
           ),
         ),
         child: Text(
@@ -277,32 +259,44 @@ class _TabChip extends StatelessWidget {
 }
 
 class _ScheduleCard extends StatelessWidget {
-  final _ScheduleItem item;
-  const _ScheduleCard({required this.item});
+  static const _scheduleColors = [
+    Color(0xFFF7A5A5),
+    Color(0xFF1F1F1F),
+    Color(0xFFFFD1D1),
+  ];
+
+  final Schedule schedule;
+  final int index;
+
+  const _ScheduleCard({required this.schedule, required this.index});
 
   @override
   Widget build(BuildContext context) {
+    final color = _scheduleColors[index % _scheduleColors.length];
+    final textColor =
+        color.computeLuminance() < 0.5 ? Colors.white : Colors.black87;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: item.color,
+        color: color,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            item.label,
+            schedule.title,
             style: TextStyle(
-              color: item.textColor,
+              color: textColor,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
           Text(
-            item.timeRange,
-            style: TextStyle(color: item.textColor, fontSize: 11),
+            schedule.timeRange,
+            style: TextStyle(color: textColor, fontSize: 11),
           ),
         ],
       ),
@@ -311,14 +305,15 @@ class _ScheduleCard extends StatelessWidget {
 }
 
 class _AccountRecordTile extends StatelessWidget {
-  final _AccountRecord record;
+  final AccountRecord record;
   const _AccountRecordTile({required this.record});
 
   @override
   Widget build(BuildContext context) {
-    final amountText = record.amount >= 0
-        ? '+${record.amount}'
-        : '${record.amount}';
+    final category = MockBackendData.categoryById(record.categoryId);
+    final paymentMethod =
+        MockBackendData.paymentMethodById(record.paymentMethodId);
+    final amountText = record.amount >= 0 ? '+${record.amount}' : '${record.amount}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -334,15 +329,12 @@ class _AccountRecordTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                record.title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+                category.name,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 2),
               Text(
-                record.category,
+                paymentMethod.name,
                 style: const TextStyle(fontSize: 10, color: Colors.black54),
               ),
             ],
@@ -352,9 +344,7 @@ class _AccountRecordTile extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: record.amount >= 0
-                  ? const Color(0xFF1B5E20)
-                  : const Color(0xFFB71C1C),
+              color: record.amountColor,
             ),
           ),
         ],
@@ -364,8 +354,8 @@ class _AccountRecordTile extends StatelessWidget {
 }
 
 class _TodoItemTile extends StatelessWidget {
-  final _TodoItem item;
-  const _TodoItemTile({required this.item});
+  final Task task;
+  const _TodoItemTile({required this.task});
 
   @override
   Widget build(BuildContext context) {
@@ -382,18 +372,49 @@ class _TodoItemTile extends StatelessWidget {
             width: 14,
             height: 14,
             decoration: BoxDecoration(
+              color: task.isCompleted
+                  ? const Color(0xFFF7A5A5)
+                  : Colors.transparent,
               border: Border.all(color: Colors.black45, width: 1),
               borderRadius: BorderRadius.circular(3),
             ),
+            child: task.isCompleted
+                ? const Icon(Icons.check, size: 10, color: Colors.white)
+                : null,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              item.label,
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
+              task.content,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.black87,
+                decoration: task.isCompleted
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final String message;
+
+  const _EmptyState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Center(
+        child: Text(
+          message,
+          style: const TextStyle(fontSize: 12, color: Colors.black45),
+        ),
       ),
     );
   }
@@ -472,37 +493,4 @@ class _BottomNavItem extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ScheduleItem {
-  final String label;
-  final String timeRange;
-  final Color color;
-
-  const _ScheduleItem({
-    required this.label,
-    required this.timeRange,
-    required this.color,
-  });
-
-  Color get textColor =>
-      color.computeLuminance() < 0.5 ? Colors.white : Colors.black87;
-}
-
-class _AccountRecord {
-  final String title;
-  final String category;
-  final int amount;
-
-  const _AccountRecord({
-    required this.title,
-    required this.category,
-    required this.amount,
-  });
-}
-
-class _TodoItem {
-  final String label;
-
-  const _TodoItem({required this.label});
 }
