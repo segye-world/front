@@ -114,16 +114,20 @@ class MockErdRepository {
 
   // TODO(backend): 백엔드 연동 후 아래 목 지불수단 데이터는 PaymentMethod API 응답으로 교체하고 삭제하세요.
   final List<PaymentMethod> _paymentMethods = const [
-    PaymentMethod(id: 1, memberId: 1, name: '체크카드'),
+    PaymentMethod(id: 1, memberId: 1, name: '세계카드'),
     PaymentMethod(id: 2, memberId: 1, name: '현금'),
+    PaymentMethod(id: 3, memberId: 1, name: '체크카드'),
   ];
 
   // TODO(backend): 백엔드 연동 후 아래 목 카테고리 데이터는 Category API 응답으로 교체하고 삭제하세요.
   final List<Category> _categories = const [
-    Category(id: 1, name: '월급', type: 'INCOME'),
+    Category(id: 1, name: '이달 총 수입', type: 'INCOME'),
     Category(id: 2, name: '식비', type: 'EXPENSE'),
-    Category(id: 3, name: '교통', type: 'EXPENSE'),
-    Category(id: 4, name: '공부', type: 'CARD'),
+    Category(id: 3, name: '교통비', type: 'EXPENSE'),
+    Category(id: 4, name: '쇼핑', type: 'EXPENSE'),
+    Category(id: 5, name: '문화생활', type: 'EXPENSE'),
+    Category(id: 6, name: '부수입', type: 'INCOME'),
+    Category(id: 7, name: '카페', type: 'EXPENSE'),
   ];
 
   // TODO(backend): 백엔드 연동 후 아래 목 일정 데이터는 Schedule CRUD API 응답으로 교체하고 삭제하세요.
@@ -138,7 +142,7 @@ class MockErdRepository {
     Schedule(
       id: 2,
       memberId: 1,
-      title: '친구 약속',
+      title: '클릭까스 태릉점',
       startTime: DateTime.now().copyWith(hour: 11, minute: 0, second: 0, millisecond: 0, microsecond: 0),
       endTime: DateTime.now().copyWith(hour: 15, minute: 30, second: 0, millisecond: 0, microsecond: 0),
     ),
@@ -166,7 +170,7 @@ class MockErdRepository {
       scheduleId: null,
       categoryId: 1,
       paymentMethodId: 1,
-      amount: 3200000,
+      amount: 280000,
       transactionTime: DateTime.now().copyWith(hour: 9, minute: 0, second: 0, millisecond: 0, microsecond: 0),
     ),
     AccountRecord(
@@ -175,7 +179,7 @@ class MockErdRepository {
       scheduleId: 2,
       categoryId: 2,
       paymentMethodId: 1,
-      amount: -12000,
+      amount: -12900,
       transactionTime: DateTime.now().copyWith(hour: 12, minute: 20, second: 0, millisecond: 0, microsecond: 0),
     ),
     AccountRecord(
@@ -183,9 +187,54 @@ class MockErdRepository {
       memberId: 1,
       scheduleId: null,
       categoryId: 3,
+      paymentMethodId: 1,
+      amount: -6900,
+      transactionTime: DateTime.now().copyWith(hour: 8, minute: 40, second: 0, millisecond: 0, microsecond: 0),
+    ),
+    AccountRecord(
+      id: 4,
+      memberId: 1,
+      scheduleId: null,
+      categoryId: 7,
+      paymentMethodId: 1,
+      amount: -6900,
+      transactionTime: DateTime.now().subtract(const Duration(days: 1)).copyWith(hour: 15, minute: 10, second: 0, millisecond: 0, microsecond: 0),
+    ),
+    AccountRecord(
+      id: 5,
+      memberId: 1,
+      scheduleId: null,
+      categoryId: 4,
+      paymentMethodId: 3,
+      amount: -84000,
+      transactionTime: DateTime.now().subtract(const Duration(days: 2)).copyWith(hour: 19, minute: 30, second: 0, millisecond: 0, microsecond: 0),
+    ),
+    AccountRecord(
+      id: 6,
+      memberId: 1,
+      scheduleId: null,
+      categoryId: 5,
       paymentMethodId: 2,
-      amount: -3500,
-      transactionTime: DateTime.now().copyWith(hour: 18, minute: 10, second: 0, millisecond: 0, microsecond: 0),
+      amount: -42000,
+      transactionTime: DateTime.now().subtract(const Duration(days: 3)).copyWith(hour: 20, minute: 0, second: 0, millisecond: 0, microsecond: 0),
+    ),
+    AccountRecord(
+      id: 7,
+      memberId: 1,
+      scheduleId: null,
+      categoryId: 6,
+      paymentMethodId: 2,
+      amount: 120000,
+      transactionTime: DateTime.now().subtract(const Duration(days: 5)).copyWith(hour: 18, minute: 0, second: 0, millisecond: 0, microsecond: 0),
+    ),
+    AccountRecord(
+      id: 8,
+      memberId: 1,
+      scheduleId: null,
+      categoryId: 2,
+      paymentMethodId: 1,
+      amount: -18500,
+      transactionTime: DateTime.now().subtract(const Duration(days: 8)).copyWith(hour: 13, minute: 5, second: 0, millisecond: 0, microsecond: 0),
     ),
   ];
 
@@ -225,6 +274,41 @@ class MockErdRepository {
         .where((record) => record.memberId == targetMemberId)
         .map(_toAccountRecordView)
         .toList(growable: false);
+  }
+
+  /// 소비 상세/전체보기에서 최근 거래 순서로 사용할 수입·지출 조인 목록입니다.
+  List<AccountRecordView> sortedAccountRecordViews({int? memberId}) {
+    final records = allAccountRecordViews(memberId: memberId);
+    records.sort((left, right) => right.record.transactionTime.compareTo(left.record.transactionTime));
+    return records;
+  }
+
+  /// ERD Category.type 값으로 수입/지출을 구분해 월별 거래를 필터링합니다.
+  List<AccountRecordView> accountRecordsByMonth(DateTime month, {String? type, int? memberId}) {
+    return sortedAccountRecordViews(memberId: memberId)
+        .where((view) =>
+            view.record.transactionTime.year == month.year &&
+            view.record.transactionTime.month == month.month &&
+            (type == null || view.category.type == type))
+        .toList(growable: false);
+  }
+
+  /// 상단 요약 카드에서 사용하는 오늘 수입/지출 합계를 계산합니다.
+  int todayTotalByType(String type, {int? memberId}) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return accountRecordsByDate(today, memberId: memberId)
+        .where((view) => view.category.type == type)
+        .fold(0, (sum, view) => sum + view.record.amount.abs());
+  }
+
+  /// 카테고리별 지출 막대 차트에 사용할 월간 지출 합계를 계산합니다.
+  Map<Category, int> monthlyExpenseTotalsByCategory(DateTime month, {int? memberId}) {
+    final totals = <Category, int>{};
+    for (final view in accountRecordsByMonth(month, type: 'EXPENSE', memberId: memberId)) {
+      totals.update(view.category, (value) => value + view.record.amount.abs(), ifAbsent: () => view.record.amount.abs());
+    }
+    return totals;
   }
 
   AccountRecordView _toAccountRecordView(AccountRecord record) {
