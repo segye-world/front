@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
-import '../../services/auth_api.dart';
+import '../../api/auth_api.dart';
 import '../../widgets/template/auth_layout.dart';
 
 class LoginScreen extends StatefulWidget {

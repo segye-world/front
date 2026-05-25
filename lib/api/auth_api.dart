@@ -29,11 +29,12 @@ class AuthApi {
 
     final token = _extractToken(response.data);
     await _client.tokenStorage.saveAccessToken(token);
+    await _client.tokenStorage.saveEmail(email);
     return token;
   }
 
   Future<void> logout() {
-    return _client.tokenStorage.clearAccessToken();
+    return _client.tokenStorage.clearAll();
   }
 
   String _extractToken(Map<String, dynamic>? payload) {
