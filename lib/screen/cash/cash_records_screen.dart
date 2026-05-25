@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../data/mock_erd_repository.dart';
+import '../../models/account_record_model.dart';
+import '../../services/account_record_api.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
-/// 최근 거래의 전체 보기 화면입니다. 월/수입·지출 필터는 ERD Category.type과 transactionTime을 기준으로 동작합니다.
 class CashRecordsScreen extends StatefulWidget {
-  final String loginEmail;
-
-  const CashRecordsScreen({super.key, this.loginEmail = ''});
+  const CashRecordsScreen({super.key});
 
   @override
   State<CashRecordsScreen> createState() => _CashRecordsScreenState();
@@ -18,24 +16,51 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
   static const _softPink = Color(0xFFFFF1EF);
   static const _lineNavy = Color(0xFF53627D);
 
-  final MockErdRepository _repository = MockErdRepository.instance;
   late DateTime _visibleMonth;
   _RecordFilter _filter = _RecordFilter.expense;
+  List<AccountRecordModel> _records = [];
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
-    // ✅ 전체보기 진입 시 현재 월부터 보여주고 좌우 버튼으로 월을 이동합니다.
     _visibleMonth = DateTime(now.year, now.month);
+    _loadData();
+  }
+
+  String _dateStr(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final from = _dateStr(DateTime(_visibleMonth.year, _visibleMonth.month, 1));
+      final to = _dateStr(DateTime(_visibleMonth.year, _visibleMonth.month + 1, 0));
+      final records = await AccountRecordApi.fetchByDateRange(from, to);
+      if (!mounted) return;
+      setState(() => _records = records);
+    } catch (_) {
+      if (mounted) setState(() => _records = []);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<AccountRecordModel> get _filteredRecords =>
+      _records.where((r) => r.categoryType == _filter.type).toList();
+
+  Map<String, List<AccountRecordModel>> _groupByCategory(List<AccountRecordModel> records) {
+    final grouped = <String, List<AccountRecordModel>>{};
+    for (final record in records) {
+      grouped.putIfAbsent(record.categoryName, () => []).add(record);
+    }
+    return grouped;
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 현재 화면의 로그인 이메일에서 회원 고유번호(id)를 확인해 전체보기 거래도 회원별로 분리합니다.
-    final id = _repository.idForEmail(widget.loginEmail);
-    final records = _repository.accountRecordsByMonth(_visibleMonth, type: _filter.type, id: id);
-    final grouped = _groupRecordsByCategory(records);
+    final grouped = _groupByCategory(_filteredRecords);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -44,51 +69,45 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
           children: [
             _Header(onBack: () => Navigator.of(context).pop()),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-                children: [
-                  _MonthSelector(
-                    month: _visibleMonth,
-                    onPrevious: () => _changeMonth(-1),
-                    onNext: () => _changeMonth(1),
-                  ),
-                  const SizedBox(height: 10),
-                  _FilterTabs(
-                    selectedFilter: _filter,
-                    onChanged: (filter) => setState(() => _filter = filter),
-                  ),
-                  const SizedBox(height: 14),
-                  if (grouped.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 80),
-                      child: Center(child: Text('해당 월의 거래 내역이 없어요.', style: TextStyle(color: Colors.black45, fontSize: 12))),
-                    )
-                  else
-                    ...grouped.entries.map(
-                      (entry) => _CategoryGroup(categoryName: entry.key, records: entry.value),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: _primaryPink, strokeWidth: 2))
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+                      children: [
+                        _MonthSelector(
+                          month: _visibleMonth,
+                          onPrevious: _changeMonth(-1),
+                          onNext: _changeMonth(1),
+                        ),
+                        const SizedBox(height: 10),
+                        _FilterTabs(
+                          selectedFilter: _filter,
+                          onChanged: (filter) => setState(() => _filter = filter),
+                        ),
+                        const SizedBox(height: 14),
+                        if (grouped.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 80),
+                            child: Center(child: Text('해당 월의 거래 내역이 없어요.', style: TextStyle(color: Colors.black45, fontSize: 12))),
+                          )
+                        else
+                          ...grouped.entries.map(
+                            (entry) => _CategoryGroup(categoryName: entry.key, records: entry.value),
+                          ),
+                      ],
                     ),
-                ],
-              ),
             ),
-            BottomNavLayout(loginEmail: widget.loginEmail, currentTab: BottomNavType.cash),
+            const AppBottomNavBar(currentItem: AppNavItem.cash),
           ],
         ),
       ),
     );
   }
 
-  void _changeMonth(int delta) {
-    setState(() => _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + delta));
-  }
-
-  /// 전체 거래 목록은 이미지 시안처럼 카테고리 제목 아래 거래가 모이도록 그룹핑합니다.
-  Map<String, List<AccountRecordView>> _groupRecordsByCategory(List<AccountRecordView> records) {
-    final grouped = <String, List<AccountRecordView>>{};
-    for (final record in records) {
-      grouped.putIfAbsent(record.category.name, () => []).add(record);
-    }
-    return grouped;
-  }
+  VoidCallback _changeMonth(int delta) => () {
+        setState(() => _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + delta));
+        _loadData();
+      };
 }
 
 enum _RecordFilter {
@@ -186,7 +205,7 @@ class _FilterTabs extends StatelessWidget {
 
 class _CategoryGroup extends StatelessWidget {
   final String categoryName;
-  final List<AccountRecordView> records;
+  final List<AccountRecordModel> records;
 
   const _CategoryGroup({required this.categoryName, required this.records});
 
@@ -199,7 +218,7 @@ class _CategoryGroup extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.local_dining, size: 14, color: Colors.black),
+              Icon(_categoryIcon(categoryName), size: 14, color: Colors.black),
               const SizedBox(width: 4),
               Text(categoryName, style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w800)),
             ],
@@ -215,30 +234,32 @@ class _CategoryGroup extends StatelessWidget {
 }
 
 class _RecordRow extends StatelessWidget {
-  final AccountRecordView record;
+  final AccountRecordModel record;
 
   const _RecordRow({required this.record});
 
   @override
   Widget build(BuildContext context) {
-    final amount = record.record.amount;
+    final isIncome = record.categoryType == 'INCOME';
+    final amountText = isIncome ? '+${_formatNumber(record.amount)}' : '-${_formatNumber(record.amount)}';
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              _recordTitle(record),
+              record.categoryName,
               style: const TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
-          Text(record.paymentMethod.name, style: const TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: 10)),
-          const SizedBox(width: 4),
-          const Icon(Icons.credit_card, size: 13, color: _CashRecordsScreenState._lineNavy),
-          const SizedBox(width: 8),
           Text(
-            _formatSignedAmount(amount),
-            style: TextStyle(color: amount >= 0 ? const Color(0xFF1B5E20) : Colors.red, fontSize: 12, fontWeight: FontWeight.w800),
+            amountText,
+            style: TextStyle(
+              color: isIncome ? const Color(0xFF1B5E20) : Colors.red,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -246,24 +267,40 @@ class _RecordRow extends StatelessWidget {
   }
 }
 
-String _recordTitle(AccountRecordView record) => record.schedule?.title ?? _fallbackTitle(record);
-
-String _fallbackTitle(AccountRecordView record) {
-  switch (record.category.name) {
-    case '카페':
-      return '스타벅스 노원역';
-    case '교통비':
-      return '역전우동';
-    case '쇼핑':
-      return '온라인 쇼핑';
-    case '문화생활':
-      return '영화 예매';
-    default:
-      return record.category.name;
+IconData _categoryIcon(String name) {
+  final lower = name.toLowerCase();
+  if (lower.contains('식') || lower.contains('밥') || lower.contains('음식') || lower.contains('dining')) {
+    return Icons.local_dining;
   }
+  if (lower.contains('교통') || lower.contains('버스') || lower.contains('지하철') || lower.contains('택시')) {
+    return Icons.directions_bus_outlined;
+  }
+  if (lower.contains('의류') || lower.contains('쇼핑') || lower.contains('미용')) {
+    return Icons.shopping_bag_outlined;
+  }
+  if (lower.contains('의료') || lower.contains('건강') || lower.contains('병원')) {
+    return Icons.local_hospital_outlined;
+  }
+  if (lower.contains('문화') || lower.contains('여가') || lower.contains('영화')) {
+    return Icons.movie_outlined;
+  }
+  if (lower.contains('교육') || lower.contains('학원') || lower.contains('책')) {
+    return Icons.school_outlined;
+  }
+  if (lower.contains('통신') || lower.contains('인터넷') || lower.contains('폰')) {
+    return Icons.phone_outlined;
+  }
+  if (lower.contains('주거') || lower.contains('관리비') || lower.contains('월세') || lower.contains('집')) {
+    return Icons.home_outlined;
+  }
+  if (lower.contains('급여') || lower.contains('월급')) {
+    return Icons.account_balance_outlined;
+  }
+  if (lower.contains('수입') || lower.contains('income')) {
+    return Icons.trending_up;
+  }
+  return Icons.receipt_outlined;
 }
-
-String _formatSignedAmount(int amount) => '${amount < 0 ? '-' : '+'}${_formatNumber(amount.abs())}';
 
 String _formatNumber(int value) {
   final text = value.toString();

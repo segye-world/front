@@ -34,6 +34,24 @@ class ScheduleApi {
     return ScheduleModel.fromJson(body['data'] as Map<String, dynamic>);
   }
 
+  static Future<ScheduleModel> update({
+    required int id,
+    required String title,
+    required int startHour,
+    required int endHour,
+    required String colorHex,
+  }) async {
+    final response = await ApiClient.put('/api/v1/schedules/$id', {
+      'title': title,
+      'startHour': startHour,
+      'endHour': endHour,
+      'colorHex': colorHex,
+    });
+    if (response.statusCode != 200) throw Exception('일정 수정 실패');
+    final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    return ScheduleModel.fromJson(body['data'] as Map<String, dynamic>);
+  }
+
   static Future<void> delete(int id) async {
     final response = await ApiClient.delete('/api/v1/schedules/$id');
     if (response.statusCode != 200 && response.statusCode != 204) {

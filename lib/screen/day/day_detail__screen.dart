@@ -24,7 +24,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   static const _primaryColor = Color(0xFF6F7A9B);
   static const _accentColor = Color(0xFFF7A5A5);
   static const _surfaceColor = Color(0xFFFFFBFB);
-  static const double _hourHeight = 48.0;
+  static const double _hourHeight = 36.0;
 
   static const List<Color> _palette = [
     Color(0xFFF3A3A4),
@@ -160,6 +160,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
             ? '${s.title}  ${_fmtHour(s.startHour)}–${_fmtHour(s.endHour)}'
             : '일정 외';
         return _FinanceEntry(
+          id: r.id,
           category: r.categoryName,
           amount: r.categoryType == 'INCOME' ? r.amount : -r.amount,
           isIncome: r.categoryType == 'INCOME',
@@ -277,6 +278,25 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       context: context,
       builder: (_) => _EditScheduleDialog(
         card: card,
+        palette: _palette,
+        onSave: (title, start, end, color) async {
+          try {
+            await ScheduleApi.update(
+              id: scheduleId,
+              title: title,
+              startHour: start,
+              endHour: end,
+              colorHex: _colorToHex(color),
+            );
+            await _loadData();
+          } catch (_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('일정 수정에 실패했습니다.')),
+              );
+            }
+          }
+        },
         onDelete: () async {
           try {
             await ScheduleApi.delete(scheduleId);
@@ -359,32 +379,15 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.sizeOf(context).width >= 820;
-
     Widget content;
     if (_isLoading) {
       content =
           const Center(child: CircularProgressIndicator(color: _accentColor));
-    } else if (isWide) {
+    } else {
       content = Row(
         children: [
           SizedBox(
-            width: 92,
-            child: _TimelinePanel(
-              blocks: _scheduleBlocks,
-              activeScheduleId: _activeScheduleId,
-              onBlockTap: _onTimelineBlockTap,
-              onEmptyHourTap: (h) => _showAddScheduleDialog(defaultHour: h),
-            ),
-          ),
-          Expanded(child: _buildRightPanel()),
-        ],
-      );
-    } else {
-      content = Column(
-        children: [
-          SizedBox(
-            height: 288,
+            width: 56,
             child: _TimelinePanel(
               blocks: _scheduleBlocks,
               activeScheduleId: _activeScheduleId,
@@ -415,6 +418,12 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, color: _accentColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_today_outlined, color: _accentColor),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
       ),
       body: SafeArea(child: content),
       floatingActionButton: FloatingActionButton(
@@ -486,16 +495,6 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           todoCount: _totalTasks,
           financeCount: _financeEntries.length,
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-          child: _DailyStatsRow(
-            doneTasks: _doneTasks,
-            totalTasks: _totalTasks,
-            income: _totalIncome,
-            expense: _totalExpense,
-            net: _netBalance,
-          ),
-        ),
         Expanded(
           child: _activeTab == _Tab.todo
               ? _TodoPanel(
@@ -508,7 +507,21 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                   onDeleteTodo: _deleteTodo,
                   onEditSchedule: _showEditScheduleDialog,
                 )
-              : _FinancePanel(entries: _financeEntries),
+              : _FinancePanel(
+                  entries: _financeEntries,
+                  onDelete: (id) async {
+                    try {
+                      await AccountRecordApi.delete(id);
+                      await _loadData();
+                    } catch (_) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('삭제에 실패했습니다.')),
+                        );
+                      }
+                    }
+                  },
+                ),
         ),
       ],
     );
@@ -1039,9 +1052,6 @@ class _ScheduleCardState extends State<_ScheduleCard> {
   @override
   Widget build(BuildContext context) {
     final card = widget.card;
-    final headerColor = card.isStandalone
-        ? const Color(0xFFD9C9B0)
-        : card.color.withValues(alpha: 0.85);
     final bgColor = card.isStandalone
         ? const Color(0xFFFCF8F2)
         : Color.lerp(card.color, Colors.white, 0.86) ?? Colors.white;
@@ -1074,38 +1084,30 @@ class _ScheduleCardState extends State<_ScheduleCard> {
           Container(
             padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
             decoration: BoxDecoration(
-              color: headerColor,
+              color: card.isStandalone
+                  ? const Color(0xFFD9C9B0)
+                  : card.color,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(19),
               ),
             ),
             child: Row(
               children: [
+                if (card.isStandalone)
+                  const Icon(Icons.assignment_outlined, color: Colors.white, size: 18)
+                else
+                  _BarsBadge(),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        card.isStandalone ? 'STANDALONE' : 'SCHEDULE BLOCK',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.8),
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        card.isStandalone
-                            ? card.title
-                            : '${card.title}  ${_fmtHour(card.startHour)} ~ ${_fmtHour(card.endHour)}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    card.isStandalone
+                        ? '일정 외 할일'
+                        : '${_fmtHour(card.startHour)} ~ ${_fmtHour(card.endHour)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 if (widget.onEditSchedule != null)
@@ -1131,7 +1133,7 @@ class _ScheduleCardState extends State<_ScheduleCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (card.items.isEmpty)
+                if (card.items.isEmpty && !card.isStandalone)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Center(
@@ -1177,11 +1179,11 @@ class _ScheduleCardState extends State<_ScheduleCard> {
                         child: TextField(
                           controller: _inputCtrl,
                           style: const TextStyle(fontSize: 12),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             isDense: true,
                             border: InputBorder.none,
-                            hintText: '새로운 할 일 적어보세요...',
-                            hintStyle: TextStyle(
+                            hintText: card.isStandalone ? '메모를 입력하세요...' : '새로운 할 일 적어보세요...',
+                            hintStyle: const TextStyle(
                               fontSize: 12,
                               color: Colors.black38,
                             ),
@@ -1284,7 +1286,8 @@ class _TodoItemRow extends StatelessWidget {
 
 class _FinancePanel extends StatefulWidget {
   final List<_FinanceEntry> entries;
-  const _FinancePanel({required this.entries});
+  final Future<void> Function(int id) onDelete;
+  const _FinancePanel({required this.entries, required this.onDelete});
 
   @override
   State<_FinancePanel> createState() => _FinancePanelState();
@@ -1375,7 +1378,10 @@ class _FinancePanelState extends State<_FinancePanel> {
                               ),
                             ),
                           ),
-                          ...group.value.map((e) => _FinanceRow(entry: e)),
+                          ...group.value.map((e) => _FinanceRow(
+                            entry: e,
+                            onDelete: () => widget.onDelete(e.id),
+                          )),
                         ],
                       ),
                     );
@@ -1447,53 +1453,89 @@ class _FilterBar extends StatelessWidget {
 
 class _FinanceRow extends StatelessWidget {
   final _FinanceEntry entry;
-  const _FinanceRow({required this.entry});
+  final VoidCallback onDelete;
+  const _FinanceRow({required this.entry, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: entry.isIncome
-                  ? const Color(0xFFE8F7EC)
-                  : const Color(0xFFFEE8E8),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              entry.isIncome ? Icons.trending_up : Icons.shopping_bag_outlined,
-              size: 16,
-              color: entry.isIncome
-                  ? const Color(0xFF5AAD72)
-                  : const Color(0xFFE05353),
-            ),
+    return Dismissible(
+      key: ValueKey(entry.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: const BoxDecoration(
+          color: Color(0xFFE05353),
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(15),
+            bottomRight: Radius.circular(15),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              entry.category,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1A1A2E),
+        ),
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      confirmDismiss: (_) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('내역 삭제', style: TextStyle(fontSize: 15)),
+            content: Text('${entry.category} 내역을 삭제할까요?',
+                style: const TextStyle(fontSize: 13)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('취소')),
+              TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('삭제', style: TextStyle(color: Color(0xFFE05353)))),
+            ],
+          ),
+        ) ?? false;
+      },
+      onDismissed: (_) => onDelete(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: entry.isIncome
+                    ? const Color(0xFFE8F7EC)
+                    : const Color(0xFFFEE8E8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                entry.isIncome ? Icons.trending_up : Icons.shopping_bag_outlined,
+                size: 16,
+                color: entry.isIncome
+                    ? const Color(0xFF5AAD72)
+                    : const Color(0xFFE05353),
               ),
             ),
-          ),
-          Text(
-            '${entry.isIncome ? '+' : '-'}${_fmtNum(entry.amount.abs())}원',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: entry.isIncome
-                  ? const Color(0xFF5AAD72)
-                  : const Color(0xFFE05353),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                entry.category,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
             ),
-          ),
-        ],
+            Text(
+              '${entry.isIncome ? '+' : '-'}${_fmtNum(entry.amount.abs())}원',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: entry.isIncome
+                    ? const Color(0xFF5AAD72)
+                    : const Color(0xFFE05353),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1747,103 +1789,191 @@ class _AddScheduleDialogState extends State<_AddScheduleDialog> {
 
 // ─── Edit Schedule Dialog ─────────────────────────────────────────────────────
 
-class _EditScheduleDialog extends StatelessWidget {
+class _EditScheduleDialog extends StatefulWidget {
   final _ScheduleCardData card;
+  final List<Color> palette;
+  final Future<void> Function(String title, int start, int end, Color color) onSave;
   final VoidCallback onDelete;
 
   const _EditScheduleDialog({
     required this.card,
+    required this.palette,
+    required this.onSave,
     required this.onDelete,
   });
+
+  @override
+  State<_EditScheduleDialog> createState() => _EditScheduleDialogState();
+}
+
+class _EditScheduleDialogState extends State<_EditScheduleDialog> {
+  late TextEditingController _titleCtrl;
+  late int _startHour;
+  late int _endHour;
+  late int _colorIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.card.title);
+    _startHour = widget.card.startHour;
+    _endHour = widget.card.endHour;
+    final existingHex = _colorToHex(widget.card.color);
+    _colorIndex = widget.palette.indexWhere(
+      (c) => _colorToHex(c) == existingHex,
+    );
+    if (_colorIndex < 0) _colorIndex = 0;
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: card.color.withValues(alpha: 0.2),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF0F0),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.edit_calendar_outlined, color: Color(0xFFE05353), size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      '일정 수정',
+                      style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF390B0F)),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _DLabel('일정명'),
+                  _StyledTextField(controller: _titleCtrl, hint: '예: 아침 공부, 저녁 운동'),
+                  const SizedBox(height: 16),
+                  Row(
                     children: [
-                      Text(
-                        card.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: Color(0xFF1A1A2E),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _DLabel('시작 시간'),
+                            _HourDropdown(
+                              value: _startHour,
+                              onChanged: (v) => setState(() => _startHour = v),
+                            ),
+                          ],
                         ),
                       ),
-                      Text(
-                        '${_fmtHour(card.startHour)} ~ ${_fmtHour(card.endHour)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _DLabel('종료 시간'),
+                            _HourDropdown(
+                              value: _endHour,
+                              onChanged: (v) => setState(() => _endHour = v),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, size: 20),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Column(
-              children: [
-                const Text(
-                  '이 일정과 연결된 할 일도 함께 삭제됩니다.',
-                  style: TextStyle(fontSize: 12, color: Colors.black45),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      onDelete();
-                    },
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      size: 18,
-                      color: Color(0xFFE05353),
+                  const SizedBox(height: 16),
+                  const _DLabel('테마 색상'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(widget.palette.length, (i) {
+                      return GestureDetector(
+                        onTap: () => setState(() => _colorIndex = i),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: widget.palette[i],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: i == _colorIndex ? Colors.black87 : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: i == _colorIndex
+                              ? const Icon(Icons.check, size: 14, color: Colors.white)
+                              : null,
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: () async {
+                        final title = _titleCtrl.text.trim();
+                        if (title.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('일정 제목을 입력해 주세요.')),
+                          );
+                          return;
+                        }
+                        final end = _endHour <= _startHour ? _startHour + 1 : _endHour;
+                        Navigator.pop(context);
+                        await widget.onSave(title, _startHour, end, widget.palette[_colorIndex]);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF2E3A59),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('수정 저장하기'),
                     ),
-                    label: const Text(
-                      '이 일정 삭제하기',
-                      style: TextStyle(color: Color(0xFFE05353)),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFFFCDD2)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        widget.onDelete();
+                      },
+                      icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFE05353)),
+                      label: const Text('이 일정 삭제하기', style: TextStyle(color: Color(0xFFE05353))),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFFFCDD2)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2250,6 +2380,34 @@ class _HourDropdown extends StatelessWidget {
   }
 }
 
+// ─── Bars Badge ──────────────────────────────────────────────────────────────
+
+class _BarsBadge extends StatelessWidget {
+  const _BarsBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(double h) => Container(
+          width: 3,
+          height: h,
+          margin: const EdgeInsets.only(right: 2),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(1.5),
+          ),
+        );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        bar(8), bar(12), bar(8),
+        const SizedBox(width: 3),
+        bar(12), bar(8), bar(12),
+      ],
+    );
+  }
+}
+
 // ─── Data classes ─────────────────────────────────────────────────────────────
 
 class _ScheduleBlock {
@@ -2297,12 +2455,14 @@ class _TodoItem {
 }
 
 class _FinanceEntry {
+  final int id;
   final String category;
   final int amount;
   final bool isIncome;
   final String blockTitle;
 
   const _FinanceEntry({
+    required this.id,
     required this.category,
     required this.amount,
     required this.isIncome,
