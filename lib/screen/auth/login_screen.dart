@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
+import '../../services/auth_api.dart';
 import '../../widgets/template/auth_layout.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -13,12 +14,40 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = '이메일과 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await AuthApi.login(email: email, password: password);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed(Routes.main);
+    } catch (e) {
+      setState(() =>
+          _errorMessage = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -50,12 +79,17 @@ class _LoginScreenState extends State<LoginScreen> {
             hintText: 'Enter your password',
             obscureText: true,
           ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 36),
           AuthPrimaryButton(
-            onPressed: () {
-              Navigator.of(context).pushReplacementNamed(Routes.main);
-            },
-            label: 'Login',
+            onPressed: _isLoading ? null : _submitLogin,
+            label: _isLoading ? 'Loading...' : 'Login',
           ),
           const SizedBox(height: 18),
           Row(

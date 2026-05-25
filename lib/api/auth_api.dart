@@ -53,7 +53,7 @@ class AuthApi {
 
     final data = payload['data'];
     if (data is Map<String, dynamic>) {
-      final token = data['token'];
+      final token = data['accessToken'];
       if (token is String && token.isNotEmpty) {
         return token;
       }
