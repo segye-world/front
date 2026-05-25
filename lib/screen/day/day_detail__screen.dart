@@ -1278,12 +1278,11 @@ class _TodoSectionState {
 class _TodoItemState {
   final int id;
   String label;
-  bool isDone;
+  bool isDone = false;
 
   _TodoItemState({
     required this.id,
     required this.label,
-    this.isDone = false,
   });
 }
 

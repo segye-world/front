@@ -14,6 +14,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AuthApi _authApi = AuthApi();
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -39,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await AuthApi.login(email: email, password: password);
+      await _authApi.login(email: email, password: password);
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(Routes.main);
     } catch (e) {

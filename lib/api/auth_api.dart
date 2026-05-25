@@ -37,6 +37,11 @@ class AuthApi {
     return _client.tokenStorage.clearAll();
   }
 
+  Future<void> deleteAccount() async {
+    await _client.dio.delete('${ApiConfig.apiPrefix}/members/me');
+    await _client.tokenStorage.clearAll();
+  }
+
   String _extractToken(Map<String, dynamic>? payload) {
     final requestOptions = RequestOptions(path: '${ApiConfig.apiPrefix}/auth/login');
 

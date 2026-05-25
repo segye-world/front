@@ -15,6 +15,7 @@ class MyPageScreen extends StatefulWidget {
 }
 
 class _MyPageScreenState extends State<MyPageScreen> {
+  final AuthApi _authApi = AuthApi();
   String _email = '';
 
   @override
@@ -59,7 +60,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
     if (confirmed != true || !context.mounted) return;
     try {
-      await AuthApi.deleteAccount();
+      await _authApi.deleteAccount();
       await TokenStorage.clear();
       if (!context.mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
