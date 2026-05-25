@@ -2,60 +2,60 @@ import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
 
-/// 앱 전역에서 재사용하는 하단 탭 바입니다.
-class BottomNavLayout extends StatelessWidget {
-  final String loginEmail;
-  final BottomNavType currentTab;
+enum AppNavItem { cash, home, mypage }
 
-  const BottomNavLayout({
+class AppBottomNavBar extends StatelessWidget {
+  final AppNavItem currentItem;
+  final Color backgroundColor;
+  final EdgeInsetsGeometry margin;
+
+  const AppBottomNavBar({
     super.key,
-    required this.loginEmail,
-    required this.currentTab,
+    required this.currentItem,
+    this.backgroundColor = const Color(0xFFF7A5A5),
+    this.margin = const EdgeInsets.fromLTRB(24, 0, 24, 16),
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 56,
-      margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7A5A5),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          _BottomNavItem(
-            label: 'CASH',
-            isActive: currentTab == BottomNavType.cash,
-            onTap: () => Navigator.of(context).pushNamed(
-              Routes.cashDetail,
-              arguments: {'loginEmail': loginEmail},
-            ),
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 72,
+        margin: margin,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(20),
           ),
-          _BottomNavItem(
-            label: 'HOME',
-            isActive: currentTab == BottomNavType.home,
-            onTap: () => Navigator.of(context).pushNamed(
-              Routes.main,
-              arguments: {'loginEmail': loginEmail},
-            ),
+          child: Row(
+            children: [
+              _BottomNavItem(
+                label: 'CASH',
+                isActive: currentItem == AppNavItem.cash,
+                onTap: () => _navigate(context, Routes.cashDetail),
+              ),
+              _BottomNavItem(
+                label: 'HOME',
+                isActive: currentItem == AppNavItem.home,
+                onTap: () => _navigate(context, Routes.main),
+              ),
+              _BottomNavItem(
+                label: 'MYPAGE',
+                isActive: currentItem == AppNavItem.mypage,
+                onTap: () => _navigate(context, Routes.mypage),
+              ),
+            ],
           ),
-          _BottomNavItem(
-            label: 'MYPAGE',
-            isActive: currentTab == BottomNavType.myPage,
-            onTap: () => Navigator.of(context).pushNamed(
-              Routes.mypage,
-              arguments: {'loginEmail': loginEmail},
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
-}
 
-/// 현재 페이지가 어떤 탭에 속하는지 표시하기 위한 타입입니다.
-enum BottomNavType { cash, home, myPage }
+  void _navigate(BuildContext context, String routeName) {
+    Navigator.of(context).pushNamed(routeName);
+  }
+}
 
 class _BottomNavItem extends StatelessWidget {
   final String label;
@@ -78,14 +78,14 @@ class _BottomNavItem extends StatelessWidget {
           alignment: Alignment.center,
           margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFF19999) : Colors.transparent,
+            color: isActive ? const Color(0xFFF7A5A5) : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Text(
             label,
             style: const TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               color: Colors.white,
             ),
           ),
