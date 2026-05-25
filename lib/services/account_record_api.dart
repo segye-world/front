@@ -4,12 +4,17 @@ import '../models/account_record_model.dart';
 
 class AccountRecordApi {
   // 친구 백엔드: GET /api/v1/account-records?from=YYYY-MM-DD&to=YYYY-MM-DD
-  static Future<List<AccountRecordModel>> fetchByDate(String date) async {
+  static Future<List<AccountRecordModel>> fetchByDate(String date) =>
+      fetchByDateRange(date, date);
+
+  static Future<List<AccountRecordModel>> fetchByDateRange(
+      String from, String to) async {
     final response = await ApiClient.get(
-      '/api/v1/account-records?from=$date&to=$date',
+      '/api/v1/account-records?from=$from&to=$to',
     );
     if (response.statusCode != 200) throw Exception('가계부 조회 실패');
-    final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    final body =
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     final List<dynamic> data = body['data'] as List<dynamic>;
     return data
         .map((e) => AccountRecordModel.fromJson(e as Map<String, dynamic>))

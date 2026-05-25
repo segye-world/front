@@ -53,7 +53,11 @@ class AppBottomNavBar extends StatelessWidget {
   }
 
   void _navigate(BuildContext context, String routeName) {
-    Navigator.of(context).pushNamed(routeName);
+    // 탭 전환 시 스택을 비우고 이동해 화면이 쌓이는 것을 방지합니다.
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      routeName,
+      (route) => false,
+    );
   }
 }
 
