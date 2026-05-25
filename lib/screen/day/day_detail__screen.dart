@@ -1,408 +1,335 @@
 import 'package:flutter/material.dart';
 
-import '../../models/account_record_model.dart';
-import '../../services/account_record_api.dart';
-import '../../services/category_api.dart';
-import '../../services/schedule_api.dart';
-import '../../services/todo_api.dart';
-import '../../widgets/template/base_scaffold.dart';
-import '../../widgets/template/bottom_nav_layout.dart';
+import '../../routes/routes.dart';
 
 class DayDetailScreen extends StatefulWidget {
   final DateTime selectedDate;
+
   const DayDetailScreen({super.key, required this.selectedDate});
 
   @override
   State<DayDetailScreen> createState() => _DayDetailScreenState();
 }
 
-enum _Tab { todo, finance }
+enum _DetailMode { todo, finance, add }
 
-enum _FinanceFilter { all, expense, income }
+enum _FinanceType { expense, income }
 
 class _DayDetailScreenState extends State<DayDetailScreen> {
-  static const _primaryColor = Color(0xFF6F7A9B);
   static const _accentColor = Color(0xFFF7A5A5);
   static const _surfaceColor = Color(0xFFFFFBFB);
-  static const double _hourHeight = 36.0;
+  static const _panelBorder = Color(0xFFE6DCDD);
 
-  static const List<Color> _palette = [
-    Color(0xFFF3A3A4),
-    Color(0xFF9DB7EA),
-    Color(0xFF71B35C),
-    Color(0xFFFFB24D),
-    Color(0xFFE8A5E8),
-    Color(0xFF9FD9C8),
+  late final List<_ScheduleBlock> _scheduleBlocks;
+  late final List<_TodoSectionState> _sections;
+  late final List<_FinanceEntry> _financeEntries;
+
+  _DetailMode _detailMode = _DetailMode.todo;
+  int? _editingSectionId;
+
+  final _titleController = TextEditingController();
+  final _amountController = TextEditingController();
+  final _memoController = TextEditingController();
+  final _newTodoController = TextEditingController();
+
+  int _selectedColorIndex = 0;
+  double _startHour = 13;
+  double _endHour = 15;
+  _FinanceType _financeType = _FinanceType.expense;
+  final List<String> _draftTodos = <String>[];
+
+  final List<Color> _palette = const [
     Color(0xFF5E6BA8),
+    Color(0xFF5A79E6),
     Color(0xFF8B65E8),
+    Color(0xFF71B35C),
     Color(0xFFBE8A3A),
+    Color(0xFFD1832F),
+    Color(0xFF9DB7EA),
+    Color(0xFFFFB24D),
     Color(0xFFF8A7D8),
+    Color(0xFF9FD9C8),
     Color(0xFFF2A4A4),
     Color(0xFFF7D5AF),
   ];
 
-  List<_ScheduleBlock> _scheduleBlocks = [];
-  List<_ScheduleCardData> _scheduleCards = [];
-  List<_FinanceEntry> _financeEntries = [];
-  List<CategoryModel> _allCategories = [];
-  List<String> _expenseCategories = ['기타'];
-  List<String> _incomeCategories = ['기타'];
-
-  _Tab _activeTab = _Tab.todo;
-  int? _activeScheduleId;
-  bool _isLoading = true;
-
-  final _todoScrollCtrl = ScrollController();
-  final Map<int, GlobalKey> _cardKeys = {};
+  final List<String> _expenseCategories = const ['식비', '교통비', '취미'];
+  final List<String> _incomeCategories = const ['주말 알바', '용돈', '월급'];
+  String _selectedFinanceCategory = '식비';
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _scheduleBlocks = <_ScheduleBlock>[
+      _ScheduleBlock(
+        id: 1,
+        title: '아침 공부',
+        startHour: 7,
+        endHour: 10,
+        color: const Color(0xFFFFD7D7),
+      ),
+      _ScheduleBlock(
+        id: 2,
+        title: '영어 공부',
+        startHour: 10,
+        endHour: 16,
+        color: const Color(0xFFFFE9CC),
+      ),
+    ];
+
+    _sections = <_TodoSectionState>[
+      _TodoSectionState(
+        id: 1,
+        title: '아침 공부 07:00-09:30',
+        color: const Color(0xFFFFD7D7),
+        items: <_TodoItemState>[
+          _TodoItemState(id: 1, label: '백준 알고리즘 실버 2문제'),
+          _TodoItemState(id: 2, label: '듀오링고 영어 1회차'),
+          _TodoItemState(id: 3, label: '소시구조 8주차 복습'),
+          _TodoItemState(id: 4, label: '운영체제 8주차 복습'),
+        ],
+      ),
+      _TodoSectionState(
+        id: 2,
+        title: '영어 공부 10:00-16:30',
+        color: const Color(0xFFFFE9CC),
+        items: <_TodoItemState>[],
+      ),
+      _TodoSectionState(
+        id: 3,
+        title: '일정 외 할일',
+        color: const Color(0xFFD6D6D6),
+        items: <_TodoItemState>[],
+      ),
+    ];
+
+    _financeEntries = <_FinanceEntry>[
+      _FinanceEntry(
+        title: '스타벅스 보냉컵',
+        amount: -5900,
+        type: _FinanceType.expense,
+        category: '취미',
+        blockTitle: '아침 공부 07:00-09:30',
+      ),
+      _FinanceEntry(
+        title: '용돈',
+        amount: 50000,
+        type: _FinanceType.income,
+        category: '용돈',
+        blockTitle: '아침 공부 07:00-09:30',
+      ),
+    ];
   }
 
   @override
   void dispose() {
-    _todoScrollCtrl.dispose();
+    _titleController.dispose();
+    _amountController.dispose();
+    _memoController.dispose();
+    _newTodoController.dispose();
     super.dispose();
   }
 
-  // ── Date helpers ──────────────────────────────────────────────────────────
-
-  String get _dateString {
-    final y = widget.selectedDate.year.toString();
-    final m = widget.selectedDate.month.toString().padLeft(2, '0');
-    final d = widget.selectedDate.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
-
   String get _formattedDate {
-    final m = widget.selectedDate.month.toString().padLeft(2, '0');
-    final d = widget.selectedDate.day.toString().padLeft(2, '0');
-    return '${widget.selectedDate.year}년 $m월 $d일';
+    final month = widget.selectedDate.month.toString().padLeft(2, '0');
+    final day = widget.selectedDate.day.toString().padLeft(2, '0');
+    return '${widget.selectedDate.year}년 $month월 $day일';
   }
 
-  // ── Data loading ──────────────────────────────────────────────────────────
+  void _setMode(_DetailMode mode) {
+    setState(() {
+      _detailMode = mode;
+      if (mode != _DetailMode.todo) {
+        _editingSectionId = null;
+      }
+    });
+  }
 
-  Future<void> _loadData() async {
-    if (mounted) setState(() => _isLoading = true);
-    try {
-      final date = _dateString;
+  void _toggleTodo(int sectionId, int itemId, bool? checked) {
+    final section = _sectionById(sectionId);
+    final item = section.items.firstWhere((element) => element.id == itemId);
+    setState(() {
+      item.isDone = checked ?? false;
+    });
+  }
 
-      final catFuture = CategoryApi.fetchAll();
-      final schFuture = ScheduleApi.fetchByDate(date);
-      final todoFuture = TodoApi.fetchByDate(date);
-      final recFuture = AccountRecordApi.fetchByDate(date);
+  void _openEditMode(int sectionId) {
+    setState(() {
+      _detailMode = _DetailMode.todo;
+      _editingSectionId = sectionId;
+    });
+  }
 
-      final categories = await catFuture;
-      final schedules = await schFuture;
-      final todos = await todoFuture;
-      final records = await recFuture;
+  void _closeEditMode() {
+    setState(() {
+      _editingSectionId = null;
+    });
+  }
 
-      _allCategories = categories;
-      final expCats =
-          categories.where((c) => c.type == 'EXPENSE').map((c) => c.name).toList();
-      final incCats =
-          categories.where((c) => c.type == 'INCOME').map((c) => c.name).toList();
-      _expenseCategories = expCats.isNotEmpty ? expCats : ['기타'];
-      _incomeCategories = incCats.isNotEmpty ? incCats : ['기타'];
+  void _updateTodoLabel(int sectionId, int itemId, String value) {
+    final section = _sectionById(sectionId);
+    final item = section.items.firstWhere((element) => element.id == itemId);
+    item.label = value;
+  }
 
-      _scheduleBlocks = schedules
-          .map(
-            (s) => _ScheduleBlock(
-              id: s.id,
-              title: s.title,
-              startHour: s.startHour,
-              endHour: s.endHour,
-              color: _hexToColor(s.colorHex),
-            ),
-          )
-          .toList();
+  void _removeTodo(int sectionId, int itemId) {
+    setState(() {
+      _sectionById(sectionId).items.removeWhere((item) => item.id == itemId);
+    });
+  }
 
-      _cardKeys.clear();
-      _scheduleCards = schedules.map((s) {
-        _cardKeys[s.id] = GlobalKey();
-        final items = todos
-            .where((t) => t.scheduleId == s.id)
-            .map((t) => _TodoItem(id: t.id, label: t.label, isDone: t.isDone))
-            .toList();
-        return _ScheduleCardData(
-          id: s.id,
-          title: s.title,
-          startHour: s.startHour,
-          endHour: s.endHour,
-          color: _hexToColor(s.colorHex),
-          items: items,
-        );
-      }).toList();
+  void _addTodoToSection(int sectionId) {
+    final text = _newTodoController.text.trim();
+    if (text.isEmpty) return;
 
-      _cardKeys[-1] = GlobalKey();
-      final standaloneItems = todos
-          .where((t) => t.scheduleId == null)
-          .map((t) => _TodoItem(id: t.id, label: t.label, isDone: t.isDone))
-          .toList();
-      _scheduleCards.add(
-        _ScheduleCardData(
-          id: -1,
-          title: '일정 외 할일',
-          startHour: -1,
-          endHour: -1,
-          color: const Color(0xFFC6D0D6),
-          items: standaloneItems,
-          isStandalone: true,
+    setState(() {
+      _sectionById(sectionId).items.add(
+        _TodoItemState(id: DateTime.now().microsecondsSinceEpoch, label: text),
+      );
+      _newTodoController.clear();
+    });
+  }
+
+  void _saveSectionEdits() {
+    setState(() {
+      _editingSectionId = null;
+      _newTodoController.clear();
+    });
+  }
+
+  void _handleBottomNavTap(int index) {
+    switch (index) {
+      case 0:
+        Navigator.of(context).pushNamed(Routes.cashDetail);
+        break;
+      case 1:
+        Navigator.of(context).pushNamed(Routes.main);
+        break;
+      case 2:
+        Navigator.of(context).pushNamed(Routes.mypage);
+        break;
+    }
+  }
+
+  void _prepareAddMode() {
+    setState(() {
+      _detailMode = _DetailMode.add;
+      _editingSectionId = null;
+      _titleController.clear();
+      _amountController.clear();
+      _memoController.clear();
+      _newTodoController.clear();
+      _draftTodos.clear();
+      _selectedColorIndex = 0;
+      _startHour = 13;
+      _endHour = 15;
+      _financeType = _FinanceType.expense;
+      _selectedFinanceCategory = _expenseCategories.first;
+    });
+  }
+
+  void _addDraftTodo() {
+    final text = _newTodoController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _draftTodos.add(text);
+      _newTodoController.clear();
+    });
+  }
+
+  void _removeDraftTodo(String todo) {
+    setState(() {
+      _draftTodos.remove(todo);
+    });
+  }
+
+  void _changeFinanceType(_FinanceType type) {
+    setState(() {
+      _financeType = type;
+      _selectedFinanceCategory = _activeCategories.first;
+    });
+  }
+
+  void _submitNewSchedule() {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('일정 제목을 입력해 주세요.')),
+      );
+      return;
+    }
+
+    final newSectionId = DateTime.now().millisecondsSinceEpoch;
+    final start = _startHour.round();
+    final end = _endHour.round() <= start ? start + 1 : _endHour.round();
+    final color = _palette[_selectedColorIndex];
+
+    setState(() {
+      _scheduleBlocks.add(
+        _ScheduleBlock(
+          id: newSectionId,
+          title: title,
+          startHour: start,
+          endHour: end,
+          color: color.withValues(alpha: 0.45),
         ),
       );
 
-      final scheduleMap = {for (final s in schedules) s.id: s};
-      _financeEntries = records.map((r) {
-        final s = r.scheduleId != null ? scheduleMap[r.scheduleId] : null;
-        final blockTitle = s != null
-            ? '${s.title}  ${_fmtHour(s.startHour)}–${_fmtHour(s.endHour)}'
-            : '일정 외';
-        return _FinanceEntry(
-          id: r.id,
-          category: r.categoryName,
-          amount: r.categoryType == 'INCOME' ? r.amount : -r.amount,
-          isIncome: r.categoryType == 'INCOME',
-          blockTitle: blockTitle,
-        );
-      }).toList();
-
-      if (mounted) setState(() => _isLoading = false);
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('데이터 로드 실패: $e')),
-        );
-      }
-    }
-  }
-
-  // ── Todo actions ──────────────────────────────────────────────────────────
-
-  void _toggleTodo(int scheduleId, int todoId, bool? checked) {
-    final card = _cardById(scheduleId);
-    final item = card.items.firstWhere((i) => i.id == todoId);
-    final newDone = checked ?? false;
-    setState(() => item.isDone = newDone);
-    TodoApi.update(todoId, isDone: newDone).catchError((_) {
-      if (mounted) setState(() => item.isDone = !newDone);
-    });
-  }
-
-  Future<void> _addTodo(int scheduleId, String text) async {
-    if (text.trim().isEmpty) return;
-    try {
-      final newTodo = await TodoApi.create(
-        label: text.trim(),
-        date: _dateString,
-        scheduleId: scheduleId > 0 ? scheduleId : null,
-      );
-      if (mounted) {
-        setState(() {
-          _cardById(scheduleId).items.add(
-            _TodoItem(id: newTodo.id, label: text.trim()),
-          );
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('할 일 추가에 실패했습니다.')),
-        );
-      }
-    }
-  }
-
-  void _deleteTodo(int scheduleId, int todoId) {
-    setState(() {
-      _cardById(scheduleId).items.removeWhere((i) => i.id == todoId);
-    });
-    TodoApi.delete(todoId).catchError((_) {
-      if (mounted) _loadData();
-    });
-  }
-
-  // ── Schedule actions ──────────────────────────────────────────────────────
-
-  void _onTimelineBlockTap(int scheduleId) {
-    setState(() {
-      _activeScheduleId = scheduleId;
-      _activeTab = _Tab.todo;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _cardKeys[scheduleId]?.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(
-          ctx,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOut,
-          alignment: 0.1,
-        );
-      }
-    });
-  }
-
-  void _showAddScheduleDialog({int defaultHour = 9}) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => _AddScheduleDialog(
-        defaultHour: defaultHour,
-        palette: _palette,
-        onSave: (title, start, end, color) async {
-          try {
-            await ScheduleApi.create(
-              title: title,
-              date: _dateString,
-              startHour: start,
-              endHour: end,
-              colorHex: _colorToHex(color),
-            );
-            await _loadData();
-          } catch (_) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('일정 추가에 실패했습니다.')),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  void _showEditScheduleDialog(int scheduleId) {
-    final card = _scheduleCards.firstWhere((c) => c.id == scheduleId);
-    showDialog<void>(
-      context: context,
-      builder: (_) => _EditScheduleDialog(
-        card: card,
-        palette: _palette,
-        onSave: (title, start, end, color) async {
-          try {
-            await ScheduleApi.update(
-              id: scheduleId,
-              title: title,
-              startHour: start,
-              endHour: end,
-              colorHex: _colorToHex(color),
-            );
-            await _loadData();
-          } catch (_) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('일정 수정에 실패했습니다.')),
-              );
-            }
-          }
-        },
-        onDelete: () async {
-          try {
-            await ScheduleApi.delete(scheduleId);
-            if (mounted && _activeScheduleId == scheduleId) {
-              setState(() => _activeScheduleId = null);
-            }
-            await _loadData();
-          } catch (_) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('일정 삭제에 실패했습니다.')),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  void _showAddTransactionDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (_) => _AddTransactionDialog(
-        scheduleCards:
-            _scheduleCards.where((c) => !c.isStandalone).toList(),
-        expenseCategories: _expenseCategories,
-        incomeCategories: _incomeCategories,
-        onSave: (amount, categoryName, scheduleId) async {
-          if (_allCategories.isEmpty) return;
-          final cat = _allCategories.firstWhere(
-            (c) => c.name == categoryName,
-            orElse: () => _allCategories.first,
-          );
-          try {
-            await AccountRecordApi.create(
-              amount: amount,
-              categoryId: cat.id,
-              scheduleId: scheduleId,
-              date: _dateString,
-            );
-            await _loadData();
-          } catch (_) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('가계부 기록에 실패했습니다.')),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  // ── Computed stats ────────────────────────────────────────────────────────
-
-  int get _doneTasks => _scheduleCards.fold(
-        0,
-        (sum, c) => sum + c.items.where((i) => i.isDone).length,
+      _sections.insert(
+        _sections.length - 1,
+        _TodoSectionState(
+          id: newSectionId,
+          title: '$title ${_formatHour(_startHour)}-${_formatHour(_endHour)}',
+          color: color.withValues(alpha: 0.35),
+          items: _draftTodos
+              .map(
+                (todo) => _TodoItemState(
+                  id: DateTime.now().microsecondsSinceEpoch + todo.length,
+                  label: todo,
+                ),
+              )
+              .toList(),
+        ),
       );
 
-  int get _totalTasks =>
-      _scheduleCards.fold(0, (sum, c) => sum + c.items.length);
+      final amount = int.tryParse(_amountController.text.trim());
+      if (amount != null && amount != 0) {
+        final sign = _financeType == _FinanceType.expense ? -1 : 1;
+        _financeEntries.insert(
+          0,
+          _FinanceEntry(
+            title: _memoController.text.trim().isEmpty
+                ? title
+                : _memoController.text.trim(),
+            amount: amount * sign,
+            type: _financeType,
+            category: _selectedFinanceCategory,
+            blockTitle:
+                '$title ${_formatHour(_startHour)}-${_formatHour(_endHour)}',
+          ),
+        );
+      }
 
-  int get _totalIncome => _financeEntries
-      .where((e) => e.isIncome)
-      .fold(0, (sum, e) => sum + e.amount);
+      _detailMode = _DetailMode.todo;
+    });
+  }
 
-  int get _totalExpense => _financeEntries
-      .where((e) => !e.isIncome)
-      .fold(0, (sum, e) => sum + e.amount.abs());
+  List<String> get _activeCategories => _financeType == _FinanceType.expense
+      ? _expenseCategories
+      : _incomeCategories;
 
-  int get _netBalance => _totalIncome - _totalExpense;
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  _ScheduleCardData _cardById(int id) =>
-      _scheduleCards.firstWhere((c) => c.id == id);
-
-  // ── Build ─────────────────────────────────────────────────────────────────
+  _TodoSectionState _sectionById(int sectionId) {
+    return _sections.firstWhere((section) => section.id == sectionId);
+  }
 
   @override
   Widget build(BuildContext context) {
-    Widget content;
-    if (_isLoading) {
-      content =
-          const Center(child: CircularProgressIndicator(color: _accentColor));
-    } else {
-      content = Row(
-        children: [
-          SizedBox(
-            width: 56,
-            child: _TimelinePanel(
-              blocks: _scheduleBlocks,
-              activeScheduleId: _activeScheduleId,
-              onBlockTap: _onTimelineBlockTap,
-              onEmptyHourTap: (h) => _showAddScheduleDialog(defaultHour: h),
-            ),
-          ),
-          Expanded(child: _buildRightPanel()),
-        ],
-      );
-    }
+    final width = MediaQuery.sizeOf(context).width;
+    final isWide = width >= 820;
 
-    return BaseScaffold(
+    return Scaffold(
       backgroundColor: _surfaceColor,
-      useSafeArea: false,
       appBar: AppBar(
         backgroundColor: const Color(0xFFFFF1F1),
         elevation: 0,
@@ -418,863 +345,592 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, color: _accentColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today_outlined, color: _accentColor),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
       ),
-      body: SafeArea(child: content),
+      body: SafeArea(
+        child: isWide
+            ? Row(
+                children: [
+                  Expanded(
+                    flex: 11,
+                    child: _TimeTablePanel(
+                      blocks: _scheduleBlocks,
+                      onBlockLongPress: _openEditMode,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 13,
+                    child: _DetailPanel(
+                      mode: _detailMode,
+                      sections: _sections,
+                      editingSectionId: _editingSectionId,
+                      financeEntries: _financeEntries,
+                      palette: _palette,
+                      selectedColorIndex: _selectedColorIndex,
+                      titleController: _titleController,
+                      amountController: _amountController,
+                      memoController: _memoController,
+                      newTodoController: _newTodoController,
+                      startHour: _startHour,
+                      endHour: _endHour,
+                      financeType: _financeType,
+                      activeCategories: _activeCategories,
+                      selectedFinanceCategory: _selectedFinanceCategory,
+                      draftTodos: _draftTodos,
+                      onModeSelected: _setMode,
+                      onSectionLongPress: _openEditMode,
+                      onTodoChanged: _toggleTodo,
+                      onTodoLabelChanged: _updateTodoLabel,
+                      onTodoDeleted: _removeTodo,
+                      onSectionTodoAdded: _addTodoToSection,
+                      onSectionEditCanceled: _closeEditMode,
+                      onSectionEditSaved: _saveSectionEdits,
+                      onPrepareAddMode: _prepareAddMode,
+                      onDraftTodoAdded: _addDraftTodo,
+                      onDraftTodoRemoved: _removeDraftTodo,
+                      onColorSelected: (index) {
+                        setState(() => _selectedColorIndex = index);
+                      },
+                      onStartHourChanged: (value) {
+                        setState(() => _startHour = value);
+                      },
+                      onEndHourChanged: (value) {
+                        setState(() => _endHour = value);
+                      },
+                      onFinanceTypeChanged: _changeFinanceType,
+                      onFinanceCategoryChanged: (value) {
+                        setState(() => _selectedFinanceCategory = value);
+                      },
+                      onSubmitNewSchedule: _submitNewSchedule,
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  SizedBox(
+                    height: 360,
+                    child: _TimeTablePanel(
+                      blocks: _scheduleBlocks,
+                      onBlockLongPress: _openEditMode,
+                    ),
+                  ),
+                  Expanded(
+                    child: _DetailPanel(
+                      mode: _detailMode,
+                      sections: _sections,
+                      editingSectionId: _editingSectionId,
+                      financeEntries: _financeEntries,
+                      palette: _palette,
+                      selectedColorIndex: _selectedColorIndex,
+                      titleController: _titleController,
+                      amountController: _amountController,
+                      memoController: _memoController,
+                      newTodoController: _newTodoController,
+                      startHour: _startHour,
+                      endHour: _endHour,
+                      financeType: _financeType,
+                      activeCategories: _activeCategories,
+                      selectedFinanceCategory: _selectedFinanceCategory,
+                      draftTodos: _draftTodos,
+                      onModeSelected: _setMode,
+                      onSectionLongPress: _openEditMode,
+                      onTodoChanged: _toggleTodo,
+                      onTodoLabelChanged: _updateTodoLabel,
+                      onTodoDeleted: _removeTodo,
+                      onSectionTodoAdded: _addTodoToSection,
+                      onSectionEditCanceled: _closeEditMode,
+                      onSectionEditSaved: _saveSectionEdits,
+                      onPrepareAddMode: _prepareAddMode,
+                      onDraftTodoAdded: _addDraftTodo,
+                      onDraftTodoRemoved: _removeDraftTodo,
+                      onColorSelected: (index) {
+                        setState(() => _selectedColorIndex = index);
+                      },
+                      onStartHourChanged: (value) {
+                        setState(() => _startHour = value);
+                      },
+                      onEndHourChanged: (value) {
+                        setState(() => _endHour = value);
+                      },
+                      onFinanceTypeChanged: _changeFinanceType,
+                      onFinanceCategoryChanged: (value) {
+                        setState(() => _selectedFinanceCategory = value);
+                      },
+                      onSubmitNewSchedule: _submitNewSchedule,
+                    ),
+                  ),
+                ],
+              ),
+      ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: _primaryColor,
-        onPressed: _showFabSheet,
+        backgroundColor: const Color(0xFF6F7A9B),
+        onPressed: _prepareAddMode,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      bottomNavigationBar: const AppBottomNavBar(
-        currentItem: AppNavItem.home,
-        margin: EdgeInsets.fromLTRB(12, 0, 12, 12),
-      ),
-    );
-  }
-
-  void _showFabSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.black12,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              _FabMenuItem(
-                icon: Icons.calendar_today_outlined,
-                label: '일정 새로 만들기',
-                color: _accentColor,
-                onTap: () {
-                  Navigator.pop(context);
-                  _showAddScheduleDialog();
-                },
-              ),
-              const SizedBox(height: 4),
-              _FabMenuItem(
-                icon: Icons.account_balance_wallet_outlined,
-                label: '수입 · 지출 기입',
-                color: const Color(0xFF71B35C),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showAddTransactionDialog();
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRightPanel() {
-    return Column(
-      children: [
-        _TabRow(
-          activeTab: _activeTab,
-          onTabChanged: (t) => setState(() => _activeTab = t),
-          todoCount: _totalTasks,
-          financeCount: _financeEntries.length,
-        ),
-        Expanded(
-          child: _activeTab == _Tab.todo
-              ? _TodoPanel(
-                  cards: _scheduleCards,
-                  activeScheduleId: _activeScheduleId,
-                  cardKeys: _cardKeys,
-                  scrollController: _todoScrollCtrl,
-                  onToggleTodo: _toggleTodo,
-                  onAddTodo: _addTodo,
-                  onDeleteTodo: _deleteTodo,
-                  onEditSchedule: _showEditScheduleDialog,
-                )
-              : _FinancePanel(
-                  entries: _financeEntries,
-                  onDelete: (id) async {
-                    try {
-                      await AccountRecordApi.delete(id);
-                      await _loadData();
-                    } catch (_) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('삭제에 실패했습니다.')),
-                        );
-                      }
-                    }
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─── Timeline Panel ───────────────────────────────────────────────────────────
-
-class _TimelinePanel extends StatelessWidget {
-  final List<_ScheduleBlock> blocks;
-  final int? activeScheduleId;
-  final ValueChanged<int> onBlockTap;
-  final ValueChanged<int> onEmptyHourTap;
-
-  const _TimelinePanel({
-    required this.blocks,
-    required this.activeScheduleId,
-    required this.onBlockTap,
-    required this.onEmptyHourTap,
-  });
-
-  static const double _hourHeight = _DayDetailScreenState._hourHeight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FB),
-        border: Border.all(color: const Color(0xFFDDE0E8)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: SingleChildScrollView(
-          child: SizedBox(
-            width: double.infinity,
-            height: 25 * _hourHeight,
-            child: Stack(
-              children: [
-                // Hour grid rows
-                ...List.generate(25, (i) {
-                  return Positioned(
-                    top: i * _hourHeight,
-                    left: 0,
-                    right: 0,
-                    height: _hourHeight,
-                    child: GestureDetector(
-                      onTap: () => onEmptyHourTap(i),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            top: BorderSide(
-                              color: Colors.blueGrey.shade100,
-                              width: 0.8,
-                            ),
-                          ),
-                        ),
-                        padding: const EdgeInsets.only(left: 5, top: 3),
-                        child: Text(
-                          '${i.toString().padLeft(2, '0')}:00',
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: Colors.blueGrey.shade400,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                // Schedule blocks
-                ...blocks.map((block) {
-                  final isActive = activeScheduleId == block.id;
-                  final duration = block.endHour - block.startHour;
-                  return Positioned(
-                    top: block.startHour * _hourHeight + 1,
-                    left: 4,
-                    right: 4,
-                    height: duration * _hourHeight - 2,
-                    child: GestureDetector(
-                      onTap: () => onBlockTap(block.id),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: block.color.withValues(alpha: 0.75),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border(
-                            left: BorderSide(color: block.color, width: 3),
-                          ),
-                          boxShadow: isActive
-                              ? [
-                                  BoxShadow(
-                                    color: block.color.withValues(alpha: 0.5),
-                                    blurRadius: 6,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        padding: const EdgeInsets.fromLTRB(5, 4, 4, 4),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              block.title,
-                              style: const TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              _fmtHour(block.startHour),
-                              style: const TextStyle(
-                                fontSize: 8,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Tab Row ──────────────────────────────────────────────────────────────────
-
-class _TabRow extends StatelessWidget {
-  final _Tab activeTab;
-  final ValueChanged<_Tab> onTabChanged;
-  final int todoCount;
-  final int financeCount;
-
-  const _TabRow({
-    required this.activeTab,
-    required this.onTabChanged,
-    required this.todoCount,
-    required this.financeCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F0F0),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          _TabChip(
-            label: '할 일',
-            badge: todoCount,
-            badgeColor: const Color(0xFFE05353),
-            isActive: activeTab == _Tab.todo,
-            onTap: () => onTabChanged(_Tab.todo),
-          ),
-          _TabChip(
-            label: '수입 · 지출',
-            badge: financeCount,
-            badgeColor: const Color(0xFF5AAD72),
-            isActive: activeTab == _Tab.finance,
-            onTap: () => onTabChanged(_Tab.finance),
-          ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: 1,
+        onTap: _handleBottomNavTap,
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.white,
+        backgroundColor: _accentColor,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.wallet), label: 'CASH'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'MYPAGE'),
         ],
       ),
     );
   }
 }
 
-class _TabChip extends StatelessWidget {
-  final String label;
-  final int badge;
-  final Color badgeColor;
-  final bool isActive;
-  final VoidCallback onTap;
+class _TimeTablePanel extends StatelessWidget {
+  final List<_ScheduleBlock> blocks;
+  final ValueChanged<int> onBlockLongPress;
 
-  const _TabChip({
-    required this.label,
-    required this.badge,
-    required this.badgeColor,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Stack(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: isActive ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: isActive
-                    ? const [BoxShadow(color: Colors.black12, blurRadius: 4)]
-                    : null,
-              ),
-              child: Center(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isActive
-                        ? const Color(0xFF390B0F)
-                        : Colors.black45,
-                  ),
-                ),
-              ),
-            ),
-            if (badge > 0)
-              Positioned(
-                top: 2,
-                right: 8,
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: badgeColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$badge',
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Daily Stats Row ──────────────────────────────────────────────────────────
-
-class _DailyStatsRow extends StatelessWidget {
-  final int doneTasks;
-  final int totalTasks;
-  final int income;
-  final int expense;
-  final int net;
-
-  const _DailyStatsRow({
-    required this.doneTasks,
-    required this.totalTasks,
-    required this.income,
-    required this.expense,
-    required this.net,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final pct = totalTasks > 0
-        ? (doneTasks / totalTasks * 100).round()
-        : 0;
-    return Row(
-      children: [
-        Expanded(
-          child: _StatsCard(
-            label: '오늘 할 일 진행',
-            mainValue: '$doneTasks',
-            unit: '/ ${totalTasks}개',
-            icon: Icons.check_circle_outline,
-            iconColor: const Color(0xFFE05353),
-            iconBg: const Color(0xFFFEE8E8),
-            footer: Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: totalTasks > 0 ? doneTasks / totalTasks : 0,
-                      backgroundColor: const Color(0xFFE0E0E0),
-                      color: const Color(0xFFF3A3A4),
-                      minHeight: 6,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$pct%',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFE05353),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatsCard(
-            label: '일간 가계부 잔액',
-            mainValue: net >= 0 ? '+${_fmtNum(net)}' : _fmtNum(net),
-            unit: '원',
-            icon: Icons.savings_outlined,
-            iconColor: net >= 0
-                ? const Color(0xFF5AAD72)
-                : const Color(0xFFE8A030),
-            iconBg: net >= 0
-                ? const Color(0xFFE8F7EC)
-                : const Color(0xFFFFF3E0),
-            footer: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '수입 +${_fmtNum(income)}원',
-                        style: const TextStyle(
-                          fontSize: 9,
-                          color: Color(0xFF5AAD72),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        '지출 -${_fmtNum(expense)}원',
-                        style: const TextStyle(
-                          fontSize: 9,
-                          color: Color(0xFFE05353),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatsCard extends StatelessWidget {
-  final String label;
-  final String mainValue;
-  final String unit;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final Widget footer;
-
-  const _StatsCard({
-    required this.label,
-    required this.mainValue,
-    required this.unit,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-    required this.footer,
+  const _TimeTablePanel({
+    required this.blocks,
+    required this.onBlockLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FB),
-        border: Border.all(color: const Color(0xFFE4E7EB)),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFDCD6D6)),
+      ),
+      child: ListView.builder(
+        itemCount: 25,
+        itemBuilder: (context, index) {
+          final hour = index.toString().padLeft(2, '0');
+          final block = _blockForHour(index);
+
+          return GestureDetector(
+            onLongPress: block == null ? null : () => onBlockLongPress(block.id),
+            child: Container(
+              height: 28,
+              decoration: BoxDecoration(
+                color: block?.color,
+                border: Border(
+                  top: BorderSide(color: Colors.blueGrey.shade200, width: 0.8),
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 38,
+                    child: Text(
+                      '$hour:00',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Row(
+                      children: List.generate(
+                        4,
+                        (lineIndex) => Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                left: BorderSide(
+                                  color: Colors.blueGrey.shade100,
+                                  width: 0.8,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  _ScheduleBlock? _blockForHour(int hour) {
+    for (final block in blocks) {
+      if (hour >= block.startHour && hour < block.endHour) {
+        return block;
+      }
+    }
+    return null;
+  }
+}
+
+class _DetailPanel extends StatelessWidget {
+  final _DetailMode mode;
+  final List<_TodoSectionState> sections;
+  final int? editingSectionId;
+  final List<_FinanceEntry> financeEntries;
+  final List<Color> palette;
+  final int selectedColorIndex;
+  final TextEditingController titleController;
+  final TextEditingController amountController;
+  final TextEditingController memoController;
+  final TextEditingController newTodoController;
+  final double startHour;
+  final double endHour;
+  final _FinanceType financeType;
+  final List<String> activeCategories;
+  final String selectedFinanceCategory;
+  final List<String> draftTodos;
+  final ValueChanged<_DetailMode> onModeSelected;
+  final ValueChanged<int> onSectionLongPress;
+  final void Function(int sectionId, int itemId, bool? checked) onTodoChanged;
+  final void Function(int sectionId, int itemId, String value) onTodoLabelChanged;
+  final void Function(int sectionId, int itemId) onTodoDeleted;
+  final ValueChanged<int> onSectionTodoAdded;
+  final VoidCallback onSectionEditCanceled;
+  final VoidCallback onSectionEditSaved;
+  final VoidCallback onPrepareAddMode;
+  final VoidCallback onDraftTodoAdded;
+  final ValueChanged<String> onDraftTodoRemoved;
+  final ValueChanged<int> onColorSelected;
+  final ValueChanged<double> onStartHourChanged;
+  final ValueChanged<double> onEndHourChanged;
+  final ValueChanged<_FinanceType> onFinanceTypeChanged;
+  final ValueChanged<String> onFinanceCategoryChanged;
+  final VoidCallback onSubmitNewSchedule;
+
+  const _DetailPanel({
+    required this.mode,
+    required this.sections,
+    required this.editingSectionId,
+    required this.financeEntries,
+    required this.palette,
+    required this.selectedColorIndex,
+    required this.titleController,
+    required this.amountController,
+    required this.memoController,
+    required this.newTodoController,
+    required this.startHour,
+    required this.endHour,
+    required this.financeType,
+    required this.activeCategories,
+    required this.selectedFinanceCategory,
+    required this.draftTodos,
+    required this.onModeSelected,
+    required this.onSectionLongPress,
+    required this.onTodoChanged,
+    required this.onTodoLabelChanged,
+    required this.onTodoDeleted,
+    required this.onSectionTodoAdded,
+    required this.onSectionEditCanceled,
+    required this.onSectionEditSaved,
+    required this.onPrepareAddMode,
+    required this.onDraftTodoAdded,
+    required this.onDraftTodoRemoved,
+    required this.onColorSelected,
+    required this.onStartHourChanged,
+    required this.onEndHourChanged,
+    required this.onFinanceTypeChanged,
+    required this.onFinanceCategoryChanged,
+    required this.onSubmitNewSchedule,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _DayDetailScreenState._panelBorder),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black45,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: mainValue,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1A1A2E),
-                            ),
-                          ),
-                          TextSpan(
-                            text: ' $unit',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.black38,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 16, color: iconColor),
-              ),
-            ],
+          _PanelTabs(
+            mode: mode,
+            onModeSelected: onModeSelected,
+            onAddPressed: onPrepareAddMode,
           ),
-          const SizedBox(height: 8),
-          footer,
+          Expanded(
+            child: switch (mode) {
+              _DetailMode.todo => _TodoPanel(
+                  sections: sections,
+                  editingSectionId: editingSectionId,
+                  newTodoController: newTodoController,
+                  onSectionLongPress: onSectionLongPress,
+                  onTodoChanged: onTodoChanged,
+                  onTodoLabelChanged: onTodoLabelChanged,
+                  onTodoDeleted: onTodoDeleted,
+                  onSectionTodoAdded: onSectionTodoAdded,
+                  onSectionEditCanceled: onSectionEditCanceled,
+                  onSectionEditSaved: onSectionEditSaved,
+                ),
+              _DetailMode.finance => _FinancePanel(entries: financeEntries),
+              _DetailMode.add => _ScheduleAddPanel(
+                  palette: palette,
+                  selectedColorIndex: selectedColorIndex,
+                  titleController: titleController,
+                  amountController: amountController,
+                  memoController: memoController,
+                  todoController: newTodoController,
+                  startHour: startHour,
+                  endHour: endHour,
+                  financeType: financeType,
+                  activeCategories: activeCategories,
+                  selectedFinanceCategory: selectedFinanceCategory,
+                  draftTodos: draftTodos,
+                  onColorSelected: onColorSelected,
+                  onStartHourChanged: onStartHourChanged,
+                  onEndHourChanged: onEndHourChanged,
+                  onFinanceTypeChanged: onFinanceTypeChanged,
+                  onFinanceCategoryChanged: onFinanceCategoryChanged,
+                  onDraftTodoAdded: onDraftTodoAdded,
+                  onDraftTodoRemoved: onDraftTodoRemoved,
+                  onSubmit: onSubmitNewSchedule,
+                ),
+            },
+          ),
         ],
       ),
     );
   }
 }
 
-// ─── Todo Panel ───────────────────────────────────────────────────────────────
+class _PanelTabs extends StatelessWidget {
+  final _DetailMode mode;
+  final ValueChanged<_DetailMode> onModeSelected;
+  final VoidCallback onAddPressed;
+
+  const _PanelTabs({
+    required this.mode,
+    required this.onModeSelected,
+    required this.onAddPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget tab(String label, _DetailMode tabMode) {
+      final isActive = mode == tabMode;
+      return InkWell(
+        onTap: () => onModeSelected(tabMode),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isActive ? Colors.white : const Color(0xFFF5F0F0),
+            border: Border(
+              bottom: BorderSide(
+                color: isActive ? const Color(0xFF6F7A9B) : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: isActive ? Colors.black87 : Colors.black45,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        tab('할 일', _DetailMode.todo),
+        tab('수입 · 지출', _DetailMode.finance),
+        const Spacer(),
+        IconButton(
+          onPressed: onAddPressed,
+          icon: const Icon(Icons.add, size: 18),
+        ),
+      ],
+    );
+  }
+}
 
 class _TodoPanel extends StatelessWidget {
-  final List<_ScheduleCardData> cards;
-  final int? activeScheduleId;
-  final Map<int, GlobalKey> cardKeys;
-  final ScrollController scrollController;
-  final void Function(int scheduleId, int todoId, bool? checked) onToggleTodo;
-  final Future<void> Function(int scheduleId, String text) onAddTodo;
-  final void Function(int scheduleId, int todoId) onDeleteTodo;
-  final void Function(int scheduleId) onEditSchedule;
+  final List<_TodoSectionState> sections;
+  final int? editingSectionId;
+  final TextEditingController newTodoController;
+  final ValueChanged<int> onSectionLongPress;
+  final void Function(int sectionId, int itemId, bool? checked) onTodoChanged;
+  final void Function(int sectionId, int itemId, String value) onTodoLabelChanged;
+  final void Function(int sectionId, int itemId) onTodoDeleted;
+  final ValueChanged<int> onSectionTodoAdded;
+  final VoidCallback onSectionEditCanceled;
+  final VoidCallback onSectionEditSaved;
 
   const _TodoPanel({
-    required this.cards,
-    required this.activeScheduleId,
-    required this.cardKeys,
-    required this.scrollController,
-    required this.onToggleTodo,
-    required this.onAddTodo,
-    required this.onDeleteTodo,
-    required this.onEditSchedule,
+    required this.sections,
+    required this.editingSectionId,
+    required this.newTodoController,
+    required this.onSectionLongPress,
+    required this.onTodoChanged,
+    required this.onTodoLabelChanged,
+    required this.onTodoDeleted,
+    required this.onSectionTodoAdded,
+    required this.onSectionEditCanceled,
+    required this.onSectionEditSaved,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-      itemCount: cards.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (_, i) {
-        final card = cards[i];
-        return _ScheduleCard(
-          key: cardKeys[card.id],
-          card: card,
-          isActive: activeScheduleId == card.id,
-          onToggleTodo: onToggleTodo,
-          onAddTodo: onAddTodo,
-          onDeleteTodo: onDeleteTodo,
-          onEditSchedule: card.isStandalone ? null : onEditSchedule,
+      padding: const EdgeInsets.all(12),
+      itemCount: sections.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final section = sections[index];
+        final isEditing = editingSectionId == section.id;
+        return GestureDetector(
+          onLongPress: () => onSectionLongPress(section.id),
+          child: Container(
+            decoration: BoxDecoration(
+              color: section.color,
+              border: Border.all(color: const Color(0xFFE1C9CC)),
+            ),
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  section.title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (section.items.isEmpty && !isEditing)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      '등록된 할 일이 없습니다.',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                  ),
+                ...section.items.map(
+                  (item) => _TodoRow(
+                    sectionId: section.id,
+                    item: item,
+                    isEditing: isEditing,
+                    onChanged: onTodoChanged,
+                    onLabelChanged: onTodoLabelChanged,
+                    onDelete: onTodoDeleted,
+                  ),
+                ),
+                if (isEditing) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: newTodoController,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            hintText: '할 일 추가',
+                            border: UnderlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => onSectionTodoAdded(section.id),
+                        icon: const Icon(Icons.add, size: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      spacing: 8,
+                      children: [
+                        OutlinedButton(
+                          onPressed: onSectionEditCanceled,
+                          child: const Text('취소'),
+                        ),
+                        FilledButton(
+                          onPressed: onSectionEditSaved,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF6F7A9B),
+                          ),
+                          child: const Text('저장'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         );
       },
     );
   }
 }
 
-class _ScheduleCard extends StatefulWidget {
-  final _ScheduleCardData card;
-  final bool isActive;
-  final void Function(int scheduleId, int todoId, bool? checked) onToggleTodo;
-  final Future<void> Function(int scheduleId, String text) onAddTodo;
-  final void Function(int scheduleId, int todoId) onDeleteTodo;
-  final void Function(int scheduleId)? onEditSchedule;
+class _TodoRow extends StatelessWidget {
+  final int sectionId;
+  final _TodoItemState item;
+  final bool isEditing;
+  final void Function(int sectionId, int itemId, bool? checked) onChanged;
+  final void Function(int sectionId, int itemId, String value) onLabelChanged;
+  final void Function(int sectionId, int itemId) onDelete;
 
-  const _ScheduleCard({
-    super.key,
-    required this.card,
-    required this.isActive,
-    required this.onToggleTodo,
-    required this.onAddTodo,
-    required this.onDeleteTodo,
-    this.onEditSchedule,
-  });
-
-  @override
-  State<_ScheduleCard> createState() => _ScheduleCardState();
-}
-
-class _ScheduleCardState extends State<_ScheduleCard> {
-  final _inputCtrl = TextEditingController();
-
-  @override
-  void dispose() {
-    _inputCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final card = widget.card;
-    final bgColor = card.isStandalone
-        ? const Color(0xFFFCF8F2)
-        : Color.lerp(card.color, Colors.white, 0.86) ?? Colors.white;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: widget.isActive
-              ? const Color(0xFFE05353)
-              : card.color.withValues(alpha: 0.4),
-          width: widget.isActive ? 2 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: widget.isActive
-                ? const Color(0xFFE05353).withValues(alpha: 0.15)
-                : Colors.black.withValues(alpha: 0.06),
-            blurRadius: widget.isActive ? 10 : 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Card header
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-            decoration: BoxDecoration(
-              color: card.isStandalone
-                  ? const Color(0xFFD9C9B0)
-                  : card.color,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(19),
-              ),
-            ),
-            child: Row(
-              children: [
-                if (card.isStandalone)
-                  const Icon(Icons.assignment_outlined, color: Colors.white, size: 18)
-                else
-                  _BarsBadge(),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    card.isStandalone
-                        ? '일정 외 할일'
-                        : '${_fmtHour(card.startHour)} ~ ${_fmtHour(card.endHour)}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                if (widget.onEditSchedule != null)
-                  IconButton(
-                    onPressed: () => widget.onEditSchedule!(card.id),
-                    icon: const Icon(
-                      Icons.edit_outlined,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // Card body
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (card.items.isEmpty && !card.isStandalone)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.check_box_outline_blank,
-                            size: 32,
-                            color: Colors.black.withValues(alpha: 0.14),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            '등록된 할 일이 없습니다.',
-                            style: TextStyle(fontSize: 12, color: Colors.black38),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  ...card.items.map(
-                    (item) => _TodoItemRow(
-                      scheduleId: card.id,
-                      item: item,
-                      onToggle: widget.onToggleTodo,
-                      onDelete: widget.onDeleteTodo,
-                    ),
-                  ),
-                const SizedBox(height: 10),
-                // Inline add
-                Container(
-                  padding: const EdgeInsets.fromLTRB(12, 5, 6, 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.black.withValues(alpha: 0.08),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _inputCtrl,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            border: InputBorder.none,
-                            hintText: card.isStandalone ? '메모를 입력하세요...' : '새로운 할 일 적어보세요...',
-                            hintStyle: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black38,
-                            ),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          onSubmitted: (text) async {
-                            await widget.onAddTodo(card.id, text);
-                            _inputCtrl.clear();
-                          },
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () async {
-                          final text = _inputCtrl.text;
-                          await widget.onAddTodo(card.id, text);
-                          _inputCtrl.clear();
-                        },
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2E3A59),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.add,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TodoItemRow extends StatelessWidget {
-  final int scheduleId;
-  final _TodoItem item;
-  final void Function(int scheduleId, int todoId, bool? checked) onToggle;
-  final void Function(int scheduleId, int todoId) onDelete;
-
-  const _TodoItemRow({
-    required this.scheduleId,
+  const _TodoRow({
+    required this.sectionId,
     required this.item,
-    required this.onToggle,
+    required this.isEditing,
+    required this.onChanged,
+    required this.onLabelChanged,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (!isEditing) {
+      return CheckboxListTile(
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        activeColor: const Color(0xFF6F7A9B),
+        value: item.isDone,
+        onChanged: (checked) => onChanged(sectionId, item.id, checked),
+        title: Text(
+          item.label,
+          style: TextStyle(
+            fontSize: 12,
+            decoration: item.isDone ? TextDecoration.lineThrough : null,
+          ),
+        ),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          SizedBox(
-            width: 20,
-            height: 20,
-            child: Checkbox(
-              value: item.isDone,
-              onChanged: (v) => onToggle(scheduleId, item.id, v),
-              activeColor: const Color(0xFF6F7A9B),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-          const SizedBox(width: 8),
+          const Icon(Icons.drag_indicator, size: 16, color: Colors.black38),
+          const SizedBox(width: 4),
           Expanded(
-            child: Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 12,
-                color: item.isDone ? Colors.black38 : Colors.black87,
-                decoration: item.isDone ? TextDecoration.lineThrough : null,
+            child: TextFormField(
+              initialValue: item.label,
+              onChanged: (value) => onLabelChanged(sectionId, item.id, value),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: UnderlineInputBorder(),
               ),
             ),
           ),
-          GestureDetector(
-            onTap: () => onDelete(scheduleId, item.id),
-            child: const Icon(
-              Icons.remove_circle_outline,
-              size: 16,
-              color: Colors.black26,
-            ),
+          IconButton(
+            onPressed: () => onDelete(sectionId, item.id),
+            icon: const Icon(Icons.delete_outline, size: 18),
           ),
         ],
       ),
@@ -1282,1014 +938,300 @@ class _TodoItemRow extends StatelessWidget {
   }
 }
 
-// ─── Finance Panel ────────────────────────────────────────────────────────────
-
-class _FinancePanel extends StatefulWidget {
+class _FinancePanel extends StatelessWidget {
   final List<_FinanceEntry> entries;
-  final Future<void> Function(int id) onDelete;
-  const _FinancePanel({required this.entries, required this.onDelete});
 
-  @override
-  State<_FinancePanel> createState() => _FinancePanelState();
-}
-
-class _FinancePanelState extends State<_FinancePanel> {
-  _FinanceFilter _filter = _FinanceFilter.all;
+  const _FinancePanel({required this.entries});
 
   @override
   Widget build(BuildContext context) {
-    final filtered = widget.entries.where((e) {
-      if (_filter == _FinanceFilter.income) return e.isIncome;
-      if (_filter == _FinanceFilter.expense) return !e.isIncome;
-      return true;
-    }).toList();
-
     final grouped = <String, List<_FinanceEntry>>{};
-    for (final e in filtered) {
-      grouped.putIfAbsent(e.blockTitle, () => []).add(e);
+    for (final entry in entries) {
+      grouped.putIfAbsent(entry.blockTitle, () => <_FinanceEntry>[]).add(entry);
     }
 
-    return Column(
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: grouped.entries.map((group) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF4F4),
+            border: Border.all(color: const Color(0xFFE1C9CC)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                color: const Color(0xFFF6B7B7),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Text(
+                  group.key,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              ...group.value.map(
+                (entry) => ListTile(
+                  dense: true,
+                  title: Text(entry.title, style: const TextStyle(fontSize: 12)),
+                  subtitle: Text(
+                    entry.category,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  trailing: Text(
+                    _formatAmount(entry.amount),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: entry.amount >= 0
+                          ? const Color(0xFF1B5E20)
+                          : const Color(0xFFB71C1C),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _ScheduleAddPanel extends StatelessWidget {
+  final List<Color> palette;
+  final int selectedColorIndex;
+  final TextEditingController titleController;
+  final TextEditingController amountController;
+  final TextEditingController memoController;
+  final TextEditingController todoController;
+  final double startHour;
+  final double endHour;
+  final _FinanceType financeType;
+  final List<String> activeCategories;
+  final String selectedFinanceCategory;
+  final List<String> draftTodos;
+  final ValueChanged<int> onColorSelected;
+  final ValueChanged<double> onStartHourChanged;
+  final ValueChanged<double> onEndHourChanged;
+  final ValueChanged<_FinanceType> onFinanceTypeChanged;
+  final ValueChanged<String> onFinanceCategoryChanged;
+  final VoidCallback onDraftTodoAdded;
+  final ValueChanged<String> onDraftTodoRemoved;
+  final VoidCallback onSubmit;
+
+  const _ScheduleAddPanel({
+    required this.palette,
+    required this.selectedColorIndex,
+    required this.titleController,
+    required this.amountController,
+    required this.memoController,
+    required this.todoController,
+    required this.startHour,
+    required this.endHour,
+    required this.financeType,
+    required this.activeCategories,
+    required this.selectedFinanceCategory,
+    required this.draftTodos,
+    required this.onColorSelected,
+    required this.onStartHourChanged,
+    required this.onEndHourChanged,
+    required this.onFinanceTypeChanged,
+    required this.onFinanceCategoryChanged,
+    required this.onDraftTodoAdded,
+    required this.onDraftTodoRemoved,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(12),
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: _FilterBar(
-            current: _filter,
-            onChanged: (f) => setState(() => _filter = f),
+        const _FieldLabel('제목'),
+        TextField(
+          controller: titleController,
+          decoration: const InputDecoration(border: UnderlineInputBorder()),
+        ),
+        const SizedBox(height: 16),
+        const _FieldLabel('색상'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: List.generate(
+            palette.length,
+            (index) => GestureDetector(
+              onTap: () => onColorSelected(index),
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: palette[index],
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: index == selectedColorIndex
+                        ? Colors.black87
+                        : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
-        Expanded(
-          child: filtered.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.account_balance_wallet_outlined,
-                        size: 40,
-                        color: Colors.black.withValues(alpha: 0.12),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        '작성된 수입·지출 내역이 없습니다.',
-                        style: TextStyle(fontSize: 12, color: Colors.black38),
-                      ),
-                    ],
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: _HourSelector(
+                label: '시작 시간',
+                value: startHour,
+                onChanged: onStartHourChanged,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _HourSelector(
+                label: '종료 시간',
+                value: endHour,
+                onChanged: onEndHourChanged,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        const _FieldLabel('할일 추가(선택)'),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: todoController,
+                decoration: const InputDecoration(
+                  hintText: '할 일을 입력하세요',
+                  border: UnderlineInputBorder(),
+                ),
+              ),
+            ),
+            IconButton(onPressed: onDraftTodoAdded, icon: const Icon(Icons.add)),
+          ],
+        ),
+        if (draftTodos.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: draftTodos
+                .map(
+                  (todo) => InputChip(
+                    label: Text(todo),
+                    onDeleted: () => onDraftTodoRemoved(todo),
                   ),
                 )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                  children: grouped.entries.map((group) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFEEE0E0)),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x0A000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF6B7B7),
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(15),
-                              ),
-                            ),
-                            child: Text(
-                              group.key,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          ...group.value.map((e) => _FinanceRow(
-                            entry: e,
-                            onDelete: () => widget.onDelete(e.id),
-                          )),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
+                .toList(),
+          ),
+        ],
+        const SizedBox(height: 20),
+        const _FieldLabel('수입/지출 추가(선택)'),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SegmentedButton<_FinanceType>(
+            segments: const [
+              ButtonSegment(value: _FinanceType.expense, label: Text('지출')),
+              ButtonSegment(value: _FinanceType.income, label: Text('수입')),
+            ],
+            selected: <_FinanceType>{financeType},
+            onSelectionChanged: (selection) {
+              onFinanceTypeChanged(selection.first);
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('카테고리'),
+        ...activeCategories.map(
+          (category) => RadioListTile<String>(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            value: category,
+            groupValue: selectedFinanceCategory,
+            onChanged: (value) {
+              if (value != null) onFinanceCategoryChanged(value);
+            },
+            title: Text(category, style: const TextStyle(fontSize: 13)),
+          ),
+        ),
+        const _FieldLabel('메모'),
+        TextField(
+          controller: memoController,
+          decoration: const InputDecoration(border: UnderlineInputBorder()),
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('비용'),
+        TextField(
+          controller: amountController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            suffixText: '원',
+            border: UnderlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 28),
+        FilledButton(
+          onPressed: onSubmit,
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF6F7A9B),
+          ),
+          child: const Text('일정 추가'),
         ),
       ],
     );
   }
 }
 
-class _FilterBar extends StatelessWidget {
-  final _FinanceFilter current;
-  final ValueChanged<_FinanceFilter> onChanged;
-
-  const _FilterBar({required this.current, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    const filters = [
-      (_FinanceFilter.all, '전체 보기'),
-      (_FinanceFilter.expense, '지출만'),
-      (_FinanceFilter.income, '수입만'),
-    ];
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F7F8),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE4E7EB)),
-      ),
-      child: Row(
-        children: filters.map((pair) {
-          final (filter, label) = pair;
-          final isActive = current == filter;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(filter),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                decoration: BoxDecoration(
-                  color: isActive ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: isActive
-                      ? const [
-                          BoxShadow(color: Colors.black12, blurRadius: 3),
-                        ]
-                      : null,
-                ),
-                child: Center(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isActive ? const Color(0xFF1A1A2E) : Colors.black38,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class _FinanceRow extends StatelessWidget {
-  final _FinanceEntry entry;
-  final VoidCallback onDelete;
-  const _FinanceRow({required this.entry, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    return Dismissible(
-      key: ValueKey(entry.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: const BoxDecoration(
-          color: Color(0xFFE05353),
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(15),
-            bottomRight: Radius.circular(15),
-          ),
-        ),
-        child: const Icon(Icons.delete_outline, color: Colors.white),
-      ),
-      confirmDismiss: (_) async {
-        return await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('내역 삭제', style: TextStyle(fontSize: 15)),
-            content: Text('${entry.category} 내역을 삭제할까요?',
-                style: const TextStyle(fontSize: 13)),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('취소')),
-              TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('삭제', style: TextStyle(color: Color(0xFFE05353)))),
-            ],
-          ),
-        ) ?? false;
-      },
-      onDismissed: (_) => onDelete(),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: entry.isIncome
-                    ? const Color(0xFFE8F7EC)
-                    : const Color(0xFFFEE8E8),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                entry.isIncome ? Icons.trending_up : Icons.shopping_bag_outlined,
-                size: 16,
-                color: entry.isIncome
-                    ? const Color(0xFF5AAD72)
-                    : const Color(0xFFE05353),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                entry.category,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1A1A2E),
-                ),
-              ),
-            ),
-            Text(
-              '${entry.isIncome ? '+' : '-'}${_fmtNum(entry.amount.abs())}원',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: entry.isIncome
-                    ? const Color(0xFF5AAD72)
-                    : const Color(0xFFE05353),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── FAB Menu Item ────────────────────────────────────────────────────────────
-
-class _FabMenuItem extends StatelessWidget {
-  final IconData icon;
+class _HourSelector extends StatelessWidget {
   final String label;
-  final Color color;
-  final VoidCallback onTap;
+  final double value;
+  final ValueChanged<double> onChanged;
 
-  const _FabMenuItem({
-    required this.icon,
+  const _HourSelector({
     required this.label,
-    required this.color,
-    required this.onTap,
+    required this.value,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1A1A2E),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Add Schedule Dialog ──────────────────────────────────────────────────────
-
-class _AddScheduleDialog extends StatefulWidget {
-  final int defaultHour;
-  final List<Color> palette;
-  final Future<void> Function(String title, int start, int end, Color color)
-  onSave;
-
-  const _AddScheduleDialog({
-    required this.defaultHour,
-    required this.palette,
-    required this.onSave,
-  });
-
-  @override
-  State<_AddScheduleDialog> createState() => _AddScheduleDialogState();
-}
-
-class _AddScheduleDialogState extends State<_AddScheduleDialog> {
-  final _titleCtrl = TextEditingController();
-  late int _startHour;
-  late int _endHour;
-  late int _colorIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _startHour = widget.defaultHour.clamp(0, 23);
-    _endHour = (_startHour + 2).clamp(0, 24);
-    _colorIndex = widget.defaultHour % widget.palette.length;
-  }
-
-  @override
-  void dispose() {
-    _titleCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFF0F0),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.calendar_today_outlined,
-                    color: Color(0xFFE05353),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      '새 일정 추가',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF390B0F),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _DLabel('일정명'),
-                  _StyledTextField(
-                    controller: _titleCtrl,
-                    hint: '예: 아침 공부, 저녁 운동',
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const _DLabel('시작 시간'),
-                            _HourDropdown(
-                              value: _startHour,
-                              onChanged: (v) => setState(() => _startHour = v),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const _DLabel('종료 시간'),
-                            _HourDropdown(
-                              value: _endHour,
-                              onChanged: (v) => setState(() => _endHour = v),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const _DLabel('테마 색상'),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: List.generate(widget.palette.length, (i) {
-                      return GestureDetector(
-                        onTap: () => setState(() => _colorIndex = i),
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: widget.palette[i],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: i == _colorIndex
-                                  ? Colors.black87
-                                  : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                          child: i == _colorIndex
-                              ? const Icon(
-                                  Icons.check,
-                                  size: 14,
-                                  color: Colors.white,
-                                )
-                              : null,
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: () async {
-                        final title = _titleCtrl.text.trim();
-                        if (title.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('일정 제목을 입력해 주세요.'),
-                            ),
-                          );
-                          return;
-                        }
-                        final end =
-                            _endHour <= _startHour ? _startHour + 1 : _endHour;
-                        Navigator.pop(context);
-                        await widget.onSave(
-                          title,
-                          _startHour,
-                          end,
-                          widget.palette[_colorIndex],
-                        );
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E3A59),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('일정 추가하기'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Edit Schedule Dialog ─────────────────────────────────────────────────────
-
-class _EditScheduleDialog extends StatefulWidget {
-  final _ScheduleCardData card;
-  final List<Color> palette;
-  final Future<void> Function(String title, int start, int end, Color color) onSave;
-  final VoidCallback onDelete;
-
-  const _EditScheduleDialog({
-    required this.card,
-    required this.palette,
-    required this.onSave,
-    required this.onDelete,
-  });
-
-  @override
-  State<_EditScheduleDialog> createState() => _EditScheduleDialogState();
-}
-
-class _EditScheduleDialogState extends State<_EditScheduleDialog> {
-  late TextEditingController _titleCtrl;
-  late int _startHour;
-  late int _endHour;
-  late int _colorIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _titleCtrl = TextEditingController(text: widget.card.title);
-    _startHour = widget.card.startHour;
-    _endHour = widget.card.endHour;
-    final existingHex = _colorToHex(widget.card.color);
-    _colorIndex = widget.palette.indexWhere(
-      (c) => _colorToHex(c) == existingHex,
-    );
-    if (_colorIndex < 0) _colorIndex = 0;
-  }
-
-  @override
-  void dispose() {
-    _titleCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFF0F0),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.edit_calendar_outlined, color: Color(0xFFE05353), size: 20),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      '일정 수정',
-                      style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF390B0F)),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _DLabel('일정명'),
-                  _StyledTextField(controller: _titleCtrl, hint: '예: 아침 공부, 저녁 운동'),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const _DLabel('시작 시간'),
-                            _HourDropdown(
-                              value: _startHour,
-                              onChanged: (v) => setState(() => _startHour = v),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const _DLabel('종료 시간'),
-                            _HourDropdown(
-                              value: _endHour,
-                              onChanged: (v) => setState(() => _endHour = v),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const _DLabel('테마 색상'),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: List.generate(widget.palette.length, (i) {
-                      return GestureDetector(
-                        onTap: () => setState(() => _colorIndex = i),
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: widget.palette[i],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: i == _colorIndex ? Colors.black87 : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                          child: i == _colorIndex
-                              ? const Icon(Icons.check, size: 14, color: Colors.white)
-                              : null,
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: () async {
-                        final title = _titleCtrl.text.trim();
-                        if (title.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('일정 제목을 입력해 주세요.')),
-                          );
-                          return;
-                        }
-                        final end = _endHour <= _startHour ? _startHour + 1 : _endHour;
-                        Navigator.pop(context);
-                        await widget.onSave(title, _startHour, end, widget.palette[_colorIndex]);
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E3A59),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('수정 저장하기'),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 46,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        widget.onDelete();
-                      },
-                      icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFE05353)),
-                      label: const Text('이 일정 삭제하기', style: TextStyle(color: Color(0xFFE05353))),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFFFCDD2)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Add Transaction Dialog ───────────────────────────────────────────────────
-
-class _AddTransactionDialog extends StatefulWidget {
-  final List<_ScheduleCardData> scheduleCards;
-  final List<String> expenseCategories;
-  final List<String> incomeCategories;
-  final Future<void> Function(int amount, String categoryName, int? scheduleId)
-  onSave;
-
-  const _AddTransactionDialog({
-    required this.scheduleCards,
-    required this.expenseCategories,
-    required this.incomeCategories,
-    required this.onSave,
-  });
-
-  @override
-  State<_AddTransactionDialog> createState() => _AddTransactionDialogState();
-}
-
-class _AddTransactionDialogState extends State<_AddTransactionDialog> {
-  bool _isExpense = true;
-  final _amountCtrl = TextEditingController();
-  late String _selectedCategory;
-  int? _linkedScheduleId;
-
-  List<String> get _activeCategories =>
-      _isExpense ? widget.expenseCategories : widget.incomeCategories;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedCategory = widget.expenseCategories.isNotEmpty
-        ? widget.expenseCategories.first
-        : '기타';
-  }
-
-  @override
-  void dispose() {
-    _amountCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final activeColor =
-        _isExpense ? const Color(0xFFE05353) : const Color(0xFF5AAD72);
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Type selector tabs
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
-              child: Row(
-                children: [
-                  _TypeTab(
-                    label: '지출 내역',
-                    icon: Icons.trending_down,
-                    isActive: _isExpense,
-                    activeColor: const Color(0xFFE05353),
-                    onTap: () => setState(() {
-                      _isExpense = true;
-                      _selectedCategory =
-                          widget.expenseCategories.isNotEmpty
-                              ? widget.expenseCategories.first
-                              : '기타';
-                    }),
-                  ),
-                  _TypeTab(
-                    label: '수입 내역',
-                    icon: Icons.trending_up,
-                    isActive: !_isExpense,
-                    activeColor: const Color(0xFF5AAD72),
-                    onTap: () => setState(() {
-                      _isExpense = false;
-                      _selectedCategory =
-                          widget.incomeCategories.isNotEmpty
-                              ? widget.incomeCategories.first
-                              : '기타';
-                    }),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Amount input
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8F9FB),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE0E3E8)),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          _isExpense ? '−' : '+',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: activeColor,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: TextField(
-                            controller: _amountCtrl,
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.right,
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1A1A2E),
-                            ),
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              hintText: '0',
-                              hintStyle: TextStyle(
-                                fontSize: 22,
-                                color: Colors.black26,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const Text(
-                          '원',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.black38,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const _DLabel('카테고리'),
-                  ..._activeCategories.map(
-                    (cat) => RadioListTile<String>(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: cat,
-                      groupValue: _selectedCategory,
-                      onChanged: (v) {
-                        if (v != null) setState(() => _selectedCategory = v);
-                      },
-                      activeColor: const Color(0xFF6F7A9B),
-                      title: Text(cat, style: const TextStyle(fontSize: 13)),
-                    ),
-                  ),
-                  if (widget.scheduleCards.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    const _DLabel('연결 일정 (선택)'),
-                    DropdownButtonFormField<int?>(
-                      value: _linkedScheduleId,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFFF8F9FB),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFE0E3E8)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFE0E3E8)),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                      ),
-                      items: [
-                        const DropdownMenuItem<int?>(
-                          value: null,
-                          child: Text(
-                            '연결 없음 (일정 외)',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black45,
-                            ),
-                          ),
-                        ),
-                        ...widget.scheduleCards.map(
-                          (c) => DropdownMenuItem<int?>(
-                            value: c.id,
-                            child: Text(
-                              '${c.title} (${_fmtHour(c.startHour)}~${_fmtHour(c.endHour)})',
-                              style: const TextStyle(fontSize: 12),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                      ],
-                      onChanged: (v) => setState(() => _linkedScheduleId = v),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: () async {
-                        final amount =
-                            int.tryParse(_amountCtrl.text.trim()) ?? 0;
-                        if (amount <= 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('금액을 입력해 주세요.')),
-                          );
-                          return;
-                        }
-                        Navigator.pop(context);
-                        await widget.onSave(
-                          amount,
-                          _selectedCategory,
-                          _linkedScheduleId,
-                        );
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: activeColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('기록 저장하기'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TypeTab extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool isActive;
-  final Color activeColor;
-  final VoidCallback onTap;
-
-  const _TypeTab({
-    required this.label,
-    required this.icon,
-    required this.isActive,
-    required this.activeColor,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: isActive
-                ? activeColor.withValues(alpha: 0.08)
-                : const Color(0xFFF5F7F8),
-            border: Border(
-              bottom: BorderSide(
-                color: isActive ? activeColor : Colors.transparent,
-                width: 2,
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(label),
+        DropdownButtonFormField<double>(
+          value: value,
+          decoration: const InputDecoration(border: UnderlineInputBorder()),
+          items: List.generate(
+            24,
+            (index) => DropdownMenuItem<double>(
+              value: index.toDouble(),
+              child: Text(_formatHour(index.toDouble())),
             ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isActive ? activeColor : Colors.black38,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isActive ? activeColor : Colors.black38,
-                ),
-              ),
-            ],
-          ),
+          onChanged: (next) {
+            if (next != null) onChanged(next);
+          },
         ),
-      ),
+      ],
     );
   }
 }
 
-// ─── Shared dialog widgets ────────────────────────────────────────────────────
-
-class _DLabel extends StatelessWidget {
+class _FieldLabel extends StatelessWidget {
   final String text;
-  const _DLabel(this.text);
+
+  const _FieldLabel(this.text);
 
   @override
   Widget build(BuildContext context) {
@@ -2297,118 +1239,11 @@ class _DLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(
         text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Colors.black54,
-        ),
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
       ),
     );
   }
 }
-
-class _StyledTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-
-  const _StyledTextField({required this.controller, required this.hint});
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.black26),
-        filled: true,
-        fillColor: const Color(0xFFF8F9FB),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE0E3E8)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE0E3E8)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFF3A3A4), width: 1.5),
-        ),
-      ),
-    );
-  }
-}
-
-class _HourDropdown extends StatelessWidget {
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  const _HourDropdown({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<int>(
-      value: value,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: const Color(0xFFF8F9FB),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE0E3E8)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE0E3E8)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFF3A3A4), width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
-        ),
-      ),
-      items: List.generate(
-        25,
-        (i) => DropdownMenuItem(value: i, child: Text(_fmtHour(i))),
-      ),
-      onChanged: (v) {
-        if (v != null) onChanged(v);
-      },
-    );
-  }
-}
-
-// ─── Bars Badge ──────────────────────────────────────────────────────────────
-
-class _BarsBadge extends StatelessWidget {
-  const _BarsBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    Widget bar(double h) => Container(
-          width: 3,
-          height: h,
-          margin: const EdgeInsets.only(right: 2),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(1.5),
-          ),
-        );
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        bar(8), bar(12), bar(8),
-        const SizedBox(width: 3),
-        bar(12), bar(8), bar(12),
-      ],
-    );
-  }
-}
-
-// ─── Data classes ─────────────────────────────────────────────────────────────
 
 class _ScheduleBlock {
   final int id;
@@ -2426,74 +1261,55 @@ class _ScheduleBlock {
   });
 }
 
-class _ScheduleCardData {
+class _TodoSectionState {
   final int id;
   final String title;
-  final int startHour;
-  final int endHour;
   final Color color;
-  final List<_TodoItem> items;
-  final bool isStandalone;
+  final List<_TodoItemState> items;
 
-  _ScheduleCardData({
+  _TodoSectionState({
     required this.id,
     required this.title,
-    required this.startHour,
-    required this.endHour,
     required this.color,
     required this.items,
-    this.isStandalone = false,
   });
 }
 
-class _TodoItem {
+class _TodoItemState {
   final int id;
   String label;
   bool isDone;
 
-  _TodoItem({required this.id, required this.label, this.isDone = false});
+  _TodoItemState({
+    required this.id,
+    required this.label,
+    this.isDone = false,
+  });
 }
 
 class _FinanceEntry {
-  final int id;
-  final String category;
+  final String title;
   final int amount;
-  final bool isIncome;
+  final _FinanceType type;
+  final String category;
   final String blockTitle;
 
   const _FinanceEntry({
-    required this.id,
-    required this.category,
+    required this.title,
     required this.amount,
-    required this.isIncome,
+    required this.type,
+    required this.category,
     required this.blockTitle,
   });
 }
 
-// ─── Global helpers ───────────────────────────────────────────────────────────
-
-String _fmtHour(int hour) => '${hour.toString().padLeft(2, '0')}:00';
-
-String _fmtNum(int n) {
-  final s = n.abs().toString();
-  final buf = StringBuffer();
-  for (int i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-    buf.write(s[i]);
-  }
-  return buf.toString();
+String _formatHour(double hour) {
+  final rounded = hour.round().toString().padLeft(2, '0');
+  return '$rounded:00';
 }
 
-Color _hexToColor(String hex) {
-  final clean = hex.replaceAll('#', '');
-  final value = int.parse(
-    clean.length == 6 ? 'FF$clean' : clean,
-    radix: 16,
-  );
-  return Color(value);
-}
-
-String _colorToHex(Color color) {
-  final rgb = color.toARGB32() & 0xFFFFFF;
-  return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+String _formatAmount(int amount) {
+  final sign = amount >= 0 ? '+' : '-';
+  final number = amount.abs().toString();
+  return '$sign$number';
 }
