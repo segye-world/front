@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
+import '../../api/api_error.dart';
 import '../../widgets/template/auth_layout.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -42,10 +43,13 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await _authApi.login(email: email, password: password);
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed(Routes.main);
+      Navigator.of(context).pushReplacementNamed(
+        Routes.main,
+        arguments: {'loginEmail': email},
+      );
     } catch (e) {
-      setState(() =>
-          _errorMessage = e.toString().replaceFirst('Exception: ', ''));
+      setState(() => _errorMessage =
+          apiErrorMessage(e, fallback: '로그인에 실패했습니다.'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
