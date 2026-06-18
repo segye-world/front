@@ -1,18 +1,81 @@
 import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
+import '../../api/auth_api.dart';
+import '../../services/token_storage.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
-class MyPageScreen extends StatelessWidget {
+class MyPageScreen extends StatefulWidget {
   final String loginEmail;
 
   const MyPageScreen({super.key, this.loginEmail = ''});
 
   @override
+  State<MyPageScreen> createState() => _MyPageScreenState();
+}
+
+class _MyPageScreenState extends State<MyPageScreen> {
+  final AuthApi _authApi = AuthApi();
+  String _email = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEmail();
+  }
+
+  Future<void> _loadEmail() async {
+    // 인자로 받은 이메일 우선, 없으면 저장된 토큰에서 로드합니다.
+    if (widget.loginEmail.isNotEmpty) {
+      setState(() => _email = widget.loginEmail);
+    } else {
+      final stored = await TokenStorage.loadEmail();
+      if (mounted) setState(() => _email = stored ?? '');
+    }
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    await TokenStorage.clear();
+    if (!context.mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('회원 탈퇴'),
+        content: const Text('정말 탈퇴하시겠습니까?\n모든 데이터가 삭제됩니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('탈퇴', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await _authApi.deleteAccount();
+      await TokenStorage.clear();
+      if (!context.mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // ✅ 로그인 이메일을 아이디/이메일 표시에 재사용합니다.
-    final displayId = loginEmail.isEmpty ? '김' : loginEmail.split('@').first;
-    final displayEmail = loginEmail.isEmpty ? 'email.com' : loginEmail;
+    final displayId = _email.isEmpty ? '' : _email.split('@').first;
+    final displayEmail = _email.isEmpty ? '' : _email;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F1F1),
@@ -50,7 +113,7 @@ class MyPageScreen extends StatelessWidget {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            displayId.isEmpty ? '김' : displayId.substring(0, 1),
+                            displayId.isEmpty ? '?' : displayId.substring(0, 1),
                             style: const TextStyle(color: Colors.white, fontSize: 18),
                           ),
                         ),
@@ -83,7 +146,6 @@ class MyPageScreen extends StatelessWidget {
                       label: '지출 수단 및 카테고리',
                       onTap: () => Navigator.of(context).pushNamed(
                         Routes.myExpenseCategory,
-                        arguments: {'loginEmail': loginEmail},
                       ),
                     ),
                     _MenuRow(
@@ -91,7 +153,6 @@ class MyPageScreen extends StatelessWidget {
                       label: '내 정보 관리',
                       onTap: () => Navigator.of(context).pushNamed(
                         Routes.myProfile,
-                        arguments: {'loginEmail': loginEmail},
                       ),
                     ),
                     _MenuRow(
@@ -99,7 +160,6 @@ class MyPageScreen extends StatelessWidget {
                       label: '알림 설정',
                       onTap: () => Navigator.of(context).pushNamed(
                         Routes.myNotification,
-                        arguments: {'loginEmail': loginEmail},
                       ),
                     ),
                     _MenuRow(
@@ -107,34 +167,25 @@ class MyPageScreen extends StatelessWidget {
                       label: 'FAQ',
                       onTap: () => Navigator.of(context).pushNamed(
                         Routes.myFaq,
-                        arguments: {'loginEmail': loginEmail},
                       ),
                     ),
                     const SizedBox(height: 24),
                     _ActionRow(
                       label: '로그아웃',
                       color: const Color(0xFF616161),
-                      onTap: () {
-                        // ✅ 로그아웃 시 로그인 페이지만 남기고 스택을 정리합니다.
-                        Navigator.of(context).pushNamedAndRemoveUntil(
-                          Routes.login,
-                          (route) => false,
-                        );
-                      },
+                      onTap: () => _logout(context),
                     ),
                     const SizedBox(height: 14),
-                    const _ActionRow(
+                    _ActionRow(
                       label: '탈퇴하기',
-                      color: Color(0xFFE58787),
+                      color: const Color(0xFFE58787),
+                      onTap: () => _deleteAccount(context),
                     ),
                   ],
                 ),
               ),
             ),
-            BottomNavLayout(
-              loginEmail: loginEmail,
-              currentTab: BottomNavType.myPage,
-            ),
+            const AppBottomNavBar(currentItem: AppNavItem.mypage),
           ],
         ),
       ),
