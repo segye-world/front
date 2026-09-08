@@ -2,99 +2,66 @@ import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
 
+/// 하단 탭. 선언 순서가 곧 탭 인덱스입니다.
 enum AppNavItem { cash, home, mypage }
 
+/// 앱 전체에서 쓰는 하단 내비게이션 바.
+/// 일정 상세 화면의 바를 기준으로 통일했습니다.
 class AppBottomNavBar extends StatelessWidget {
+  static const Color barColor = Color(0xFFF7A5A5);
+
   final AppNavItem currentItem;
-  final Color backgroundColor;
-  final EdgeInsetsGeometry margin;
+
+  /// 이미 선택된 탭을 다시 눌렀을 때의 동작.
+  /// 지정하지 않으면 해당 탭으로 다시 이동합니다.
+  final VoidCallback? onReselected;
 
   const AppBottomNavBar({
     super.key,
     required this.currentItem,
-    this.backgroundColor = const Color(0xFFF7A5A5),
-    this.margin = const EdgeInsets.fromLTRB(24, 0, 24, 16),
+    this.onReselected,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 72,
-        margin: margin,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            children: [
-              _BottomNavItem(
-                label: 'CASH',
-                isActive: currentItem == AppNavItem.cash,
-                onTap: () => _navigate(context, Routes.cashDetail),
-              ),
-              _BottomNavItem(
-                label: 'HOME',
-                isActive: currentItem == AppNavItem.home,
-                onTap: () => _navigate(context, Routes.main),
-              ),
-              _BottomNavItem(
-                label: 'MYPAGE',
-                isActive: currentItem == AppNavItem.mypage,
-                onTap: () => _navigate(context, Routes.mypage),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return BottomNavigationBar(
+      currentIndex: currentItem.index,
+      onTap: (index) => _handleTap(context, AppNavItem.values[index]),
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: Colors.white,
+      unselectedItemColor: Colors.white,
+      backgroundColor: barColor,
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.wallet), label: 'CASH'),
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'MYPAGE'),
+      ],
     );
   }
 
-  void _navigate(BuildContext context, String routeName) {
+  void _handleTap(BuildContext context, AppNavItem target) {
+    if (target == currentItem && onReselected != null) {
+      onReselected!();
+      return;
+    }
+
+    switch (target) {
+      case AppNavItem.cash:
+        _navigate(context, Routes.cashDetail);
+      case AppNavItem.home:
+        // 홈은 오늘 날짜의 일정 상세 화면입니다.
+        _navigate(context, Routes.dayDetail, arguments: DateTime.now());
+      case AppNavItem.mypage:
+        _navigate(context, Routes.mypage);
+    }
+  }
+
+  void _navigate(BuildContext context, String routeName, {Object? arguments}) {
     // 탭 전환 시 스택을 비우고 이동해 화면이 쌓이는 것을 방지합니다.
     Navigator.of(context).pushNamedAndRemoveUntil(
       routeName,
       (route) => false,
-    );
-  }
-}
-
-class _BottomNavItem extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _BottomNavItem({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          alignment: Alignment.center,
-          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFF7A5A5) : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
+      arguments: arguments,
     );
   }
 }

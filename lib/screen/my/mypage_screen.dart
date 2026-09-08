@@ -185,10 +185,10 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 ),
               ),
             ),
-            const AppBottomNavBar(currentItem: AppNavItem.mypage),
           ],
         ),
       ),
+      bottomNavigationBar: const AppBottomNavBar(currentItem: AppNavItem.mypage),
     );
   }
 }

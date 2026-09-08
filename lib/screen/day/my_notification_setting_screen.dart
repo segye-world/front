@@ -74,9 +74,9 @@ class _MyNotificationSettingScreenState
               ],
             ),
           ),
-          const AppBottomNavBar(currentItem: AppNavItem.mypage),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavBar(currentItem: AppNavItem.mypage),
     );
   }
 }

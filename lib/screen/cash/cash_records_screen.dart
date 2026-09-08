@@ -97,10 +97,10 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
                       ],
                     ),
             ),
-            const AppBottomNavBar(currentItem: AppNavItem.cash),
           ],
         ),
       ),
+      bottomNavigationBar: const AppBottomNavBar(currentItem: AppNavItem.cash),
     );
   }
 

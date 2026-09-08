@@ -4,13 +4,13 @@ import '../../models/account_record_model.dart';
 import '../../models/payment_method_model.dart';
 import '../../models/schedule_model.dart';
 import '../../models/todo_model.dart';
-import '../../routes/routes.dart';
 import '../../services/account_record_api.dart';
 import '../../services/category_api.dart';
 import '../../services/finance_settings_api.dart';
 import '../../services/payment_method_api.dart';
 import '../../services/schedule_api.dart';
 import '../../services/todo_api.dart';
+import '../../widgets/template/bottom_nav_layout.dart';
 
 class DayDetailScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -36,6 +36,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   List<CategoryModel> _categories = const [];
   List<PaymentMethodModel> _paymentMethods = const [];
   int? _selectedPaymentMethodId;
+
+  // 홈 화면이 된 이후로는 뒤로가기 대신 캘린더로 날짜를 갈아끼우므로
+  // 화면이 살아있는 동안 바뀔 수 있는 상태로 둡니다.
+  late DateTime _selectedDate;
 
   _DetailMode _detailMode = _DetailMode.todo;
   int? _editingSectionId;
@@ -72,6 +76,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   void initState() {
     super.initState();
     _scheduleBlocks = <_ScheduleBlock>[];
+    _selectedDate = widget.selectedDate;
     _sections = <_TodoSectionState>[
       _TodoSectionState(
         id: 0,
@@ -96,13 +101,97 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   }
 
   String get _formattedDate {
-    final month = widget.selectedDate.month.toString().padLeft(2, '0');
-    final day = widget.selectedDate.day.toString().padLeft(2, '0');
-    return '${widget.selectedDate.year}년 $month월 $day일';
+    final month = _selectedDate.month.toString().padLeft(2, '0');
+    final day = _selectedDate.day.toString().padLeft(2, '0');
+    return '${_selectedDate.year}년 $month월 $day일';
+  }
+
+  DatePickerThemeData _buildDatePickerTheme() {
+    return DatePickerThemeData(
+      dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return _accentColor;
+        return null;
+      }),
+      dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return Colors.white;
+        if (states.contains(WidgetState.disabled)) return Colors.black26;
+        return Colors.black87;
+      }),
+      todayBorder: const BorderSide(width: 1.6, color: _accentColor),
+      todayForegroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return Colors.white;
+        return _accentColor;
+      }),
+      weekdayStyle: const TextStyle(fontSize: 11, color: Colors.black54),
+      dayStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+      headerForegroundColor: Colors.black87,
+    );
+  }
+
+  /// 앱바의 캘린더 아이콘 → 기존 대시보드와 같은 달력을 바텀시트로 띄웁니다.
+  Future<void> _openCalendarSheet() async {
+    final picked = await showModalBottomSheet<DateTime>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final themed = Theme.of(sheetContext).copyWith(
+          colorScheme: Theme.of(sheetContext).colorScheme.copyWith(
+            primary: _accentColor,
+            onPrimary: Colors.white,
+            onSurface: Colors.black87,
+          ),
+          datePickerTheme: _buildDatePickerTheme(),
+        );
+
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0E0E0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Theme(
+                  data: themed,
+                  child: CalendarDatePicker(
+                    initialDate: _selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2030),
+                    currentDate: DateTime.now(),
+                    onDateChanged: (date) =>
+                        Navigator.of(sheetContext).pop(date),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked != null && mounted) {
+      setState(() => _selectedDate = picked);
+      // 바뀐 날짜의 일정·할 일·소비를 다시 조회합니다.
+      _loadFinanceData();
+      _loadScheduleAndTodos();
+    }
   }
 
   String get _dateString =>
-      '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.day.toString().padLeft(2, '0')}';
+      '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
 
   Future<void> _loadFinanceData() async {
     try {
@@ -263,20 +352,6 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     });
   }
 
-  void _handleBottomNavTap(int index) {
-    switch (index) {
-      case 0:
-        Navigator.of(context).pushNamed(Routes.cashDetail);
-        break;
-      case 1:
-        Navigator.of(context).pushNamed(Routes.main);
-        break;
-      case 2:
-        Navigator.of(context).pushNamed(Routes.mypage);
-        break;
-    }
-  }
-
   void _prepareAddMode() {
     setState(() {
       _detailMode = _DetailMode.add;
@@ -426,11 +501,58 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     return _sections.firstWhere((section) => section.id == sectionId);
   }
 
+  Widget _buildDetailPanel() {
+    return _DetailPanel(
+      mode: _detailMode,
+      sections: _sections,
+      editingSectionId: _editingSectionId,
+      financeEntries: _financeEntries,
+      palette: _palette,
+      selectedColorIndex: _selectedColorIndex,
+      titleController: _titleController,
+      amountController: _amountController,
+      memoController: _memoController,
+      newTodoController: _newTodoController,
+      startHour: _startHour,
+      endHour: _endHour,
+      financeType: _financeType,
+      activeCategories: _activeCategories,
+      selectedFinanceCategory: _selectedFinanceCategory ?? '',
+      paymentMethods: _paymentMethods,
+      selectedPaymentMethodId: _selectedPaymentMethodId,
+      onPaymentMethodChanged: (value) =>
+          setState(() => _selectedPaymentMethodId = value),
+      draftTodos: _draftTodos,
+      onModeSelected: _setMode,
+      onSectionLongPress: _openEditMode,
+      onTodoChanged: _toggleTodo,
+      onTodoLabelChanged: _updateTodoLabel,
+      onTodoDeleted: _removeTodo,
+      onSectionTodoAdded: _addTodoToSection,
+      onSectionEditCanceled: _closeEditMode,
+      onSectionEditSaved: _saveSectionEdits,
+      onPrepareAddMode: _prepareAddMode,
+      onDraftTodoAdded: _addDraftTodo,
+      onDraftTodoRemoved: _removeDraftTodo,
+      onColorSelected: (index) {
+        setState(() => _selectedColorIndex = index);
+      },
+      onStartHourChanged: (value) {
+        setState(() => _startHour = value);
+      },
+      onEndHourChanged: (value) {
+        setState(() => _endHour = value);
+      },
+      onFinanceTypeChanged: _changeFinanceType,
+      onFinanceCategoryChanged: (value) {
+        setState(() => _selectedFinanceCategory = value);
+      },
+      onSubmitNewSchedule: _submitNewSchedule,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final isWide = width >= 820;
-
     return Scaffold(
       backgroundColor: _surfaceColor,
       appBar: AppBar(
@@ -444,160 +566,372 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
             fontWeight: FontWeight.w700,
           ),
         ),
+        // 홈 화면이므로 뒤로가기 대신 날짜 선택용 캘린더를 엽니다.
+        automaticallyImplyLeading: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: _accentColor),
-          onPressed: () => Navigator.of(context).pop(),
+          tooltip: '날짜 선택',
+          icon: const Icon(Icons.calendar_month, color: _accentColor),
+          onPressed: _openCalendarSheet,
         ),
       ),
       body: SafeArea(
-        child: isWide
-            ? Row(
-                children: [
-                  Expanded(
-                    flex: 11,
-                    child: _TimeTablePanel(
-                      blocks: _scheduleBlocks,
-                      onBlockLongPress: _openEditMode,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 13,
-                    child: _DetailPanel(
-                      mode: _detailMode,
-                      sections: _sections,
-                      editingSectionId: _editingSectionId,
-                      financeEntries: _financeEntries,
-                      palette: _palette,
-                      selectedColorIndex: _selectedColorIndex,
-                      titleController: _titleController,
-                      amountController: _amountController,
-                      memoController: _memoController,
-                      newTodoController: _newTodoController,
-                      startHour: _startHour,
-                      endHour: _endHour,
-                      financeType: _financeType,
-                      activeCategories: _activeCategories,
-                      selectedFinanceCategory: _selectedFinanceCategory ?? '',
-                      paymentMethods: _paymentMethods,
-                      selectedPaymentMethodId: _selectedPaymentMethodId,
-                      onPaymentMethodChanged: (value) => setState(() => _selectedPaymentMethodId = value),
-                      draftTodos: _draftTodos,
-                      onModeSelected: _setMode,
-                      onSectionLongPress: _openEditMode,
-                      onTodoChanged: _toggleTodo,
-                      onTodoLabelChanged: _updateTodoLabel,
-                      onTodoDeleted: _removeTodo,
-                      onSectionTodoAdded: _addTodoToSection,
-                      onSectionEditCanceled: _closeEditMode,
-                      onSectionEditSaved: _saveSectionEdits,
-                      onPrepareAddMode: _prepareAddMode,
-                      onDraftTodoAdded: _addDraftTodo,
-                      onDraftTodoRemoved: _removeDraftTodo,
-                      onColorSelected: (index) {
-                        setState(() => _selectedColorIndex = index);
-                      },
-                      onStartHourChanged: (value) {
-                        setState(() => _startHour = value);
-                      },
-                      onEndHourChanged: (value) {
-                        setState(() => _endHour = value);
-                      },
-                      onFinanceTypeChanged: _changeFinanceType,
-                      onFinanceCategoryChanged: (value) {
-                        setState(() => _selectedFinanceCategory = value);
-                      },
-                      onSubmitNewSchedule: _submitNewSchedule,
-                    ),
-                  ),
-                ],
-              )
-            : Column(
-                children: [
-                  SizedBox(
-                    height: 360,
-                    child: _TimeTablePanel(
-                      blocks: _scheduleBlocks,
-                      onBlockLongPress: _openEditMode,
-                    ),
-                  ),
-                  Expanded(
-                    child: _DetailPanel(
-                      mode: _detailMode,
-                      sections: _sections,
-                      editingSectionId: _editingSectionId,
-                      financeEntries: _financeEntries,
-                      palette: _palette,
-                      selectedColorIndex: _selectedColorIndex,
-                      titleController: _titleController,
-                      amountController: _amountController,
-                      memoController: _memoController,
-                      newTodoController: _newTodoController,
-                      startHour: _startHour,
-                      endHour: _endHour,
-                      financeType: _financeType,
-                      activeCategories: _activeCategories,
-                      selectedFinanceCategory: _selectedFinanceCategory ?? '',
-                      paymentMethods: _paymentMethods,
-                      selectedPaymentMethodId: _selectedPaymentMethodId,
-                      onPaymentMethodChanged: (value) => setState(() => _selectedPaymentMethodId = value),
-                      draftTodos: _draftTodos,
-                      onModeSelected: _setMode,
-                      onSectionLongPress: _openEditMode,
-                      onTodoChanged: _toggleTodo,
-                      onTodoLabelChanged: _updateTodoLabel,
-                      onTodoDeleted: _removeTodo,
-                      onSectionTodoAdded: _addTodoToSection,
-                      onSectionEditCanceled: _closeEditMode,
-                      onSectionEditSaved: _saveSectionEdits,
-                      onPrepareAddMode: _prepareAddMode,
-                      onDraftTodoAdded: _addDraftTodo,
-                      onDraftTodoRemoved: _removeDraftTodo,
-                      onColorSelected: (index) {
-                        setState(() => _selectedColorIndex = index);
-                      },
-                      onStartHourChanged: (value) {
-                        setState(() => _startHour = value);
-                      },
-                      onEndHourChanged: (value) {
-                        setState(() => _endHour = value);
-                      },
-                      onFinanceTypeChanged: _changeFinanceType,
-                      onFinanceCategoryChanged: (value) {
-                        setState(() => _selectedFinanceCategory = value);
-                      },
-                      onSubmitNewSchedule: _submitNewSchedule,
-                    ),
-                  ),
-                ],
-              ),
+        child: _TimelineWorkspace(
+          blocks: _scheduleBlocks,
+          baseDate: _selectedDate,
+          onBlockLongPress: _openEditMode,
+          panel: _buildDetailPanel(),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF6F7A9B),
         onPressed: _prepareAddMode,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1,
-        onTap: _handleBottomNavTap,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white,
-        backgroundColor: _accentColor,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.wallet), label: 'CASH'),
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'HOME'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'MYPAGE'),
-        ],
+      bottomNavigationBar: AppBottomNavBar(
+        currentItem: AppNavItem.home,
+        // 이 화면이 곧 홈이므로, HOME 탭을 다시 누르면 오늘 날짜로 되돌립니다.
+        onReselected: () => setState(() => _selectedDate = DateTime.now()),
       ),
     );
   }
 }
 
-class _TimeTablePanel extends StatelessWidget {
+/// 해당 시각을 덮는 일정 블록을 찾습니다.
+_ScheduleBlock? _blockForHour(List<_ScheduleBlock> blocks, int hour) {
+  for (final block in blocks) {
+    if (hour >= block.startHour && hour < block.endHour) {
+      return block;
+    }
+  }
+  return null;
+}
+
+/// 좌측 타임라인과 우측 상세 패널(할 일 / 수입지출)을 함께 배치합니다.
+///
+/// 평소에는 하루 24시간을 세로로 압축한 납작한 바(rail)와 상세 패널이 나란히 놓입니다.
+/// 타임라인을 오른쪽으로 밀면 타임라인이 펼쳐지는 만큼 상세 패널도 같이 오른쪽으로
+/// 밀려 화면 밖으로 나가고, 우측 끝에 얇은 화살표 버튼만 남습니다.
+/// 그 버튼을 누르면 패널이 다시 제자리로 돌아옵니다.
+class _TimelineWorkspace extends StatefulWidget {
+  /// 접혀 있을 때 타임라인이 차지하는 폭.
+  static const double railWidth = 44;
+
+  /// 펼쳐졌을 때 우측 끝에 남는 화살표 버튼의 폭.
+  static const double handleWidth = 26;
+
   final List<_ScheduleBlock> blocks;
+
+  /// 연속 타임라인이 시작하는 날짜. 아래로 내리면 이 날짜부터 하루씩 이어집니다.
+  final DateTime baseDate;
+  final ValueChanged<int> onBlockLongPress;
+  final Widget panel;
+
+  const _TimelineWorkspace({
+    required this.blocks,
+    required this.baseDate,
+    required this.onBlockLongPress,
+    required this.panel,
+  });
+
+  @override
+  State<_TimelineWorkspace> createState() => _TimelineWorkspaceState();
+}
+
+class _TimelineWorkspaceState extends State<_TimelineWorkspace>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+
+  /// 접힌 폭에서 펼친 폭까지 이동해야 하는 거리. 레이아웃 단계에서 갱신됩니다.
+  double _travel = 0;
+
+  bool get _isOpen => _controller.value > 0.5;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _open() => _controller.forward();
+
+  void _close() => _controller.reverse();
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    if (_travel <= 0) return;
+    _controller.value += (details.primaryDelta ?? 0) / _travel;
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    if (velocity.abs() > 300) {
+      velocity > 0 ? _open() : _close();
+    } else {
+      _isOpen ? _open() : _close();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        // 펼친 타임라인은 화살표 버튼 자리만 남기고 화면을 모두 차지합니다.
+        final expandedWidth =
+            (maxWidth - _TimelineWorkspace.handleWidth)
+                .clamp(_TimelineWorkspace.railWidth, maxWidth);
+        _travel = expandedWidth - _TimelineWorkspace.railWidth;
+
+        return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final t = _controller.value;
+            final timelineWidth = _TimelineWorkspace.railWidth + _travel * t;
+            final panelWidth = maxWidth - _TimelineWorkspace.railWidth;
+
+            return ClipRect(
+              child: Stack(
+                children: [
+                  // 상세 패널. 타임라인이 펼쳐지는 만큼 오른쪽으로 밀려 화면을 벗어납니다.
+                  Positioned(
+                    left: timelineWidth,
+                    top: 0,
+                    bottom: 0,
+                    width: panelWidth > 0 ? panelWidth : 0,
+                    child: widget.panel,
+                  ),
+                  // 좌측 타임라인.
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: timelineWidth,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      // 접혀 있을 때 탭하면 펼칩니다. 되돌리기는 우측 화살표 버튼이 담당합니다.
+                      onTap: _isOpen ? null : _open,
+                      onHorizontalDragUpdate: _onDragUpdate,
+                      onHorizontalDragEnd: _onDragEnd,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: t == 0
+                              ? const []
+                              : [
+                                  BoxShadow(
+                                    color:
+                                        Colors.black.withValues(alpha: 0.12 * t),
+                                    blurRadius: 12,
+                                    offset: const Offset(2, 0),
+                                  ),
+                                ],
+                        ),
+                        child: ClipRect(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              // 상세 타임라인은 항상 펼친 폭으로 그려두고, 보이는 만큼만 잘라냅니다.
+                              OverflowBox(
+                                alignment: Alignment.centerLeft,
+                                minWidth: expandedWidth,
+                                maxWidth: expandedWidth,
+                                child: _DetailedTimeline(
+                                  blocks: widget.blocks,
+                                  baseDate: widget.baseDate,
+                                  // 접혀 있으면 납작한 레일에 가려 보이지 않으므로,
+                                  // 그 위에서의 세로 드래그가 몰래 스크롤되지 않게 막습니다.
+                                  scrollEnabled: t > 0,
+                                  onBlockLongPress: widget.onBlockLongPress,
+                                ),
+                              ),
+                              // 접혀 있을 때는 납작한 타임라인이 그 위를 덮습니다.
+                              if (t < 1)
+                                Positioned(
+                                  left: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: _TimelineWorkspace.railWidth,
+                                  child: IgnorePointer(
+                                    child: Opacity(
+                                      opacity: 1 - t,
+                                      child: _CompactTimelineRail(
+                                        blocks: widget.blocks,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              // 오른쪽으로 밀 수 있음을 알려주는 손잡이.
+                              if (t < 1)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Opacity(
+                                    opacity: 1 - t,
+                                    child: Container(
+                                      width: 4,
+                                      height: 40,
+                                      margin: const EdgeInsets.only(right: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF7A5A5)
+                                            .withValues(alpha: 0.7),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 패널을 밀어낸 자리에 남는 얇은 화살표 버튼.
+                  if (t > 0)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: _TimelineWorkspace.handleWidth,
+                      child: Opacity(
+                        opacity: t,
+                        child: _PanelRevealHandle(
+                          onTap: _close,
+                          onDragUpdate: _onDragUpdate,
+                          onDragEnd: _onDragEnd,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// 밀려나간 상세 패널을 다시 불러오는 우측 끝의 얇은 버튼.
+/// 탭 외에 왼쪽으로 미는 제스처로도 되돌릴 수 있습니다.
+class _PanelRevealHandle extends StatelessWidget {
+  final VoidCallback onTap;
+  final ValueChanged<DragUpdateDetails> onDragUpdate;
+  final ValueChanged<DragEndDetails> onDragEnd;
+
+  const _PanelRevealHandle({
+    required this.onTap,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onHorizontalDragUpdate: onDragUpdate,
+      onHorizontalDragEnd: onDragEnd,
+      child: Semantics(
+        button: true,
+        label: '할 일 / 수입지출 패널 열기',
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF1F1),
+            border: const Border(left: BorderSide(color: Color(0xFFDCD6D6))),
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(10),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 8,
+                offset: const Offset(-2, 0),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.chevron_left,
+            size: 20,
+            color: Color(0xFFF7A5A5),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 하루 24시간을 화면 높이에 맞춰 압축한 납작한 타임라인.
+/// 스크롤이 없어 하루 전체의 일정 분포가 한눈에 들어옵니다.
+class _CompactTimelineRail extends StatelessWidget {
+  final List<_ScheduleBlock> blocks;
+
+  const _CompactTimelineRail({required this.blocks});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Color(0xFFDCD6D6))),
+      ),
+      child: Column(
+        children: List.generate(24, (hour) {
+          final block = _blockForHour(blocks, hour);
+          final isMajorTick = hour % 6 == 0;
+
+          return Expanded(
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: block?.color,
+                border: Border(
+                  top: BorderSide(
+                    color: isMajorTick
+                        ? Colors.blueGrey.shade200
+                        : Colors.blueGrey.shade50,
+                    width: 0.6,
+                  ),
+                ),
+              ),
+              child: isMajorTick
+                  ? Text(
+                      '$hour',
+                      style: const TextStyle(
+                        fontSize: 8,
+                        color: Colors.black38,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  : null,
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+/// 시간 눈금과 일정 제목이 모두 보이는 상세 타임라인.
+///
+/// 아래로 내리면 23시에서 끊기지 않고 다음 일자의 00시로 이어집니다.
+/// 날짜가 바뀌는 자리마다 날짜 머리글이 들어갑니다.
+class _DetailedTimeline extends StatelessWidget {
+  /// 하루가 차지하는 항목 수. 날짜 머리글 1개 + 24시간.
+  static const int _slotsPerDay = 25;
+
+  final List<_ScheduleBlock> blocks;
+  final DateTime baseDate;
+
+  /// 타임라인이 접혀 보이지 않을 때는 스크롤을 잠급니다.
+  final bool scrollEnabled;
   final ValueChanged<int> onBlockLongPress;
 
-  const _TimeTablePanel({
+  const _DetailedTimeline({
     required this.blocks,
+    required this.baseDate,
+    required this.scrollEnabled,
     required this.onBlockLongPress,
   });
 
@@ -610,10 +944,28 @@ class _TimeTablePanel extends StatelessWidget {
         border: Border.all(color: const Color(0xFFDCD6D6)),
       ),
       child: ListView.builder(
-        itemCount: 25,
+        physics: scrollEnabled ? null : const NeverScrollableScrollPhysics(),
+        // itemCount를 주지 않아, 내리는 만큼 다음 일자가 계속 이어집니다.
         itemBuilder: (context, index) {
-          final hour = index.toString().padLeft(2, '0');
-          final block = _blockForHour(index);
+          final dayOffset = index ~/ _slotsPerDay;
+          final slot = index % _slotsPerDay;
+          final date = DateTime(
+            baseDate.year,
+            baseDate.month,
+            baseDate.day + dayOffset,
+          );
+
+          if (slot == 0) {
+            return _TimelineDayHeader(date: date, isBaseDate: dayOffset == 0);
+          }
+
+          final hourValue = slot - 1;
+          final hour = hourValue.toString().padLeft(2, '0');
+          // 일정 데이터는 선택된 날짜 것만 있으므로 첫날에만 블록을 칠합니다.
+          final dayBlocks = dayOffset == 0 ? blocks : const <_ScheduleBlock>[];
+          final block = _blockForHour(dayBlocks, hourValue);
+          // 블록이 시작하는 행에만 제목을 적어 겹쳐 보이지 않게 합니다.
+          final isBlockStart = block != null && block.startHour == hourValue;
 
           return GestureDetector(
             onLongPress: block == null ? null : () => onBlockLongPress(block.id),
@@ -640,23 +992,37 @@ class _TimeTablePanel extends StatelessWidget {
                     ),
                   ),
                   Expanded(
-                    child: Row(
-                      children: List.generate(
-                        4,
-                        (lineIndex) => Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              border: Border(
-                                left: BorderSide(
-                                  color: Colors.blueGrey.shade100,
-                                  width: 0.8,
+                    child: isBlockStart
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Text(
+                              block.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          )
+                        : Row(
+                            children: List.generate(
+                              4,
+                              (lineIndex) => Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: Colors.blueGrey.shade100,
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -666,14 +1032,52 @@ class _TimeTablePanel extends StatelessWidget {
       ),
     );
   }
+}
 
-  _ScheduleBlock? _blockForHour(int hour) {
-    for (final block in blocks) {
-      if (hour >= block.startHour && hour < block.endHour) {
-        return block;
-      }
-    }
-    return null;
+/// 연속 타임라인에서 날짜가 바뀌는 자리를 알려주는 머리글.
+class _TimelineDayHeader extends StatelessWidget {
+  static const List<String> _weekdayLabels = [
+    '월',
+    '화',
+    '수',
+    '목',
+    '금',
+    '토',
+    '일',
+  ];
+
+  final DateTime date;
+
+  /// 화면에서 선택된 날짜(첫날)인지. 이어지는 날짜와 구분해 표시합니다.
+  final bool isBaseDate;
+
+  const _TimelineDayHeader({required this.date, required this.isBaseDate});
+
+  @override
+  Widget build(BuildContext context) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    final weekday = _weekdayLabels[date.weekday - 1];
+
+    return Container(
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        color: isBaseDate ? const Color(0xFFFFF1F1) : const Color(0xFFF1F3F8),
+        border: const Border(
+          top: BorderSide(color: Color(0xFFB8BED2), width: 1.2),
+        ),
+      ),
+      child: Text(
+        '$month월 $day일 ($weekday)',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: isBaseDate ? const Color(0xFF667195) : const Color(0xFF7C86A5),
+        ),
+      ),
+    );
   }
 }
 

@@ -51,9 +51,9 @@ class MyFaqScreen extends StatelessWidget {
               itemBuilder: (_, i) => _FaqTile(item: _items[i]),
             ),
           ),
-          const AppBottomNavBar(currentItem: AppNavItem.mypage),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavBar(currentItem: AppNavItem.mypage),
     );
   }
 }

@@ -150,11 +150,10 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            const AppBottomNavBar(currentItem: AppNavItem.home),
           ],
         ),
       ),
+      bottomNavigationBar: const AppBottomNavBar(currentItem: AppNavItem.home),
     );
   }
 
