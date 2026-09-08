@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../models/account_record_model.dart';
 import '../../routes/routes.dart';
+import '../../services/account_record_api.dart';
+import '../../services/category_api.dart';
+import '../../services/schedule_api.dart';
 
 class DayDetailScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -22,7 +26,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
   late final List<_ScheduleBlock> _scheduleBlocks;
   late final List<_TodoSectionState> _sections;
-  late final List<_FinanceEntry> _financeEntries;
+  late final List<AccountRecordModel> _financeEntries;
+  List<CategoryModel> _categories = const [];
 
   _DetailMode _detailMode = _DetailMode.todo;
   int? _editingSectionId;
@@ -53,9 +58,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     Color(0xFFF7D5AF),
   ];
 
-  final List<String> _expenseCategories = const ['식비', '교통비', '취미'];
-  final List<String> _incomeCategories = const ['주말 알바', '용돈', '월급'];
-  String _selectedFinanceCategory = '식비';
+  String? _selectedFinanceCategory;
 
   @override
   void initState() {
@@ -103,22 +106,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       ),
     ];
 
-    _financeEntries = <_FinanceEntry>[
-      _FinanceEntry(
-        title: '스타벅스 보냉컵',
-        amount: -5900,
-        type: _FinanceType.expense,
-        category: '취미',
-        blockTitle: '아침 공부 07:00-09:30',
-      ),
-      _FinanceEntry(
-        title: '용돈',
-        amount: 50000,
-        type: _FinanceType.income,
-        category: '용돈',
-        blockTitle: '아침 공부 07:00-09:30',
-      ),
-    ];
+    _financeEntries = <AccountRecordModel>[];
+    _loadFinanceData();
   }
 
   @override
@@ -134,6 +123,28 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     final month = widget.selectedDate.month.toString().padLeft(2, '0');
     final day = widget.selectedDate.day.toString().padLeft(2, '0');
     return '${widget.selectedDate.year}년 $month월 $day일';
+  }
+
+  String get _dateString =>
+      '${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.day.toString().padLeft(2, '0')}';
+
+  Future<void> _loadFinanceData() async {
+    try {
+      final results = await Future.wait([
+        AccountRecordApi.fetchByDate(_dateString),
+        CategoryApi.fetchAll(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _financeEntries
+          ..clear()
+          ..addAll(results[0] as List<AccountRecordModel>);
+        _categories = results[1] as List<CategoryModel>;
+        _selectedFinanceCategory ??= _expenseCategories.firstOrNull;
+      });
+    } catch (_) {
+      // Keep the schedule screen usable when finance data is temporarily unavailable.
+    }
   }
 
   void _setMode(_DetailMode mode) {
@@ -224,7 +235,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _startHour = 13;
       _endHour = 15;
       _financeType = _FinanceType.expense;
-      _selectedFinanceCategory = _expenseCategories.first;
+      _selectedFinanceCategory = _expenseCategories.firstOrNull;
     });
   }
 
@@ -247,11 +258,11 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   void _changeFinanceType(_FinanceType type) {
     setState(() {
       _financeType = type;
-      _selectedFinanceCategory = _activeCategories.first;
+      _selectedFinanceCategory = _activeCategories.firstOrNull;
     });
   }
 
-  void _submitNewSchedule() {
+  Future<void> _submitNewSchedule() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -260,15 +271,47 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       return;
     }
 
-    final newSectionId = DateTime.now().millisecondsSinceEpoch;
     final start = _startHour.round();
     final end = _endHour.round() <= start ? start + 1 : _endHour.round();
     final color = _palette[_selectedColorIndex];
 
-    setState(() {
+    final amount = int.tryParse(_amountController.text.trim());
+    final selectedCategory = _categories.where(
+      (category) => category.name == _selectedFinanceCategory &&
+          category.type == (_financeType == _FinanceType.expense ? 'EXPENSE' : 'INCOME'),
+    ).firstOrNull;
+
+    if (amount != null && amount > 0 && selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('수입·지출 카테고리를 불러온 뒤 다시 시도해 주세요.')),
+      );
+      return;
+    }
+
+    try {
+      final schedule = await ScheduleApi.create(
+        title: title,
+        date: _dateString,
+        startHour: start,
+        endHour: end,
+        colorHex: '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+      );
+
+      AccountRecordModel? createdRecord;
+      if (amount != null && amount > 0 && selectedCategory != null) {
+        createdRecord = await AccountRecordApi.create(
+          amount: amount,
+          categoryId: selectedCategory.id,
+          scheduleId: schedule.id,
+          date: _dateString,
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
       _scheduleBlocks.add(
         _ScheduleBlock(
-          id: newSectionId,
+          id: schedule.id,
           title: title,
           startHour: start,
           endHour: end,
@@ -279,7 +322,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _sections.insert(
         _sections.length - 1,
         _TodoSectionState(
-          id: newSectionId,
+          id: schedule.id,
           title: '$title ${_formatHour(_startHour)}-${_formatHour(_endHour)}',
           color: color.withValues(alpha: 0.35),
           items: _draftTodos
@@ -293,27 +336,30 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         ),
       );
 
-      final amount = int.tryParse(_amountController.text.trim());
-      if (amount != null && amount != 0) {
-        final sign = _financeType == _FinanceType.expense ? -1 : 1;
-        _financeEntries.insert(
-          0,
-          _FinanceEntry(
-            title: _memoController.text.trim().isEmpty
-                ? title
-                : _memoController.text.trim(),
-            amount: amount * sign,
-            type: _financeType,
-            category: _selectedFinanceCategory,
-            blockTitle:
-                '$title ${_formatHour(_startHour)}-${_formatHour(_endHour)}',
-          ),
-        );
+      if (createdRecord != null) {
+        _financeEntries.insert(0, createdRecord);
       }
 
       _detailMode = _DetailMode.todo;
-    });
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('일정 또는 수입·지출 저장에 실패했습니다.')),
+        );
+      }
+    }
   }
+
+  List<String> get _expenseCategories => _categories
+      .where((category) => category.type == 'EXPENSE')
+      .map((category) => category.name)
+      .toList();
+
+  List<String> get _incomeCategories => _categories
+      .where((category) => category.type == 'INCOME')
+      .map((category) => category.name)
+      .toList();
 
   List<String> get _activeCategories => _financeType == _FinanceType.expense
       ? _expenseCategories
@@ -374,7 +420,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                       endHour: _endHour,
                       financeType: _financeType,
                       activeCategories: _activeCategories,
-                      selectedFinanceCategory: _selectedFinanceCategory,
+                      selectedFinanceCategory: _selectedFinanceCategory ?? '',
                       draftTodos: _draftTodos,
                       onModeSelected: _setMode,
                       onSectionLongPress: _openEditMode,
@@ -430,7 +476,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                       endHour: _endHour,
                       financeType: _financeType,
                       activeCategories: _activeCategories,
-                      selectedFinanceCategory: _selectedFinanceCategory,
+                      selectedFinanceCategory: _selectedFinanceCategory ?? '',
                       draftTodos: _draftTodos,
                       onModeSelected: _setMode,
                       onSectionLongPress: _openEditMode,
@@ -572,7 +618,7 @@ class _DetailPanel extends StatelessWidget {
   final _DetailMode mode;
   final List<_TodoSectionState> sections;
   final int? editingSectionId;
-  final List<_FinanceEntry> financeEntries;
+  final List<AccountRecordModel> financeEntries;
   final List<Color> palette;
   final int selectedColorIndex;
   final TextEditingController titleController;
@@ -939,15 +985,16 @@ class _TodoRow extends StatelessWidget {
 }
 
 class _FinancePanel extends StatelessWidget {
-  final List<_FinanceEntry> entries;
+  final List<AccountRecordModel> entries;
 
   const _FinancePanel({required this.entries});
 
   @override
   Widget build(BuildContext context) {
-    final grouped = <String, List<_FinanceEntry>>{};
+    final grouped = <String, List<AccountRecordModel>>{};
     for (final entry in entries) {
-      grouped.putIfAbsent(entry.blockTitle, () => <_FinanceEntry>[]).add(entry);
+      final groupTitle = entry.scheduleId == null ? '직접 추가한 수입 · 지출' : '일정에 추가한 수입 · 지출';
+      grouped.putIfAbsent(groupTitle, () => <AccountRecordModel>[]).add(entry);
     }
 
     return ListView(
@@ -978,17 +1025,19 @@ class _FinancePanel extends StatelessWidget {
               ...group.value.map(
                 (entry) => ListTile(
                   dense: true,
-                  title: Text(entry.title, style: const TextStyle(fontSize: 12)),
+                  title: Text(entry.categoryName, style: const TextStyle(fontSize: 12)),
                   subtitle: Text(
-                    entry.category,
+                    entry.categoryType == 'INCOME' ? '수입' : '지출',
                     style: const TextStyle(fontSize: 11),
                   ),
                   trailing: Text(
-                    _formatAmount(entry.amount),
+                    _formatAmount(
+                      entry.categoryType == 'INCOME' ? entry.amount : -entry.amount,
+                    ),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: entry.amount >= 0
+                      color: entry.categoryType == 'INCOME'
                           ? const Color(0xFF1B5E20)
                           : const Color(0xFFB71C1C),
                     ),
@@ -1283,22 +1332,6 @@ class _TodoItemState {
   _TodoItemState({
     required this.id,
     required this.label,
-  });
-}
-
-class _FinanceEntry {
-  final String title;
-  final int amount;
-  final _FinanceType type;
-  final String category;
-  final String blockTitle;
-
-  const _FinanceEntry({
-    required this.title,
-    required this.amount,
-    required this.type,
-    required this.category,
-    required this.blockTitle,
   });
 }
 
