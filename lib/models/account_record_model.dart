@@ -18,7 +18,7 @@ class CategoryModel {
 }
 
 // 친구가 구현한 AccountRecord 백엔드 응답 형식에 맞춤:
-// { id, categoryId, categoryName, categoryType, amount, transactionTime, scheduleId }
+// { id, categoryId, categoryName, categoryType, paymentMethodId, paymentMethodName, amount, transactionTime, scheduleId }
 class AccountRecordModel {
   final int id;
   final int categoryId;
@@ -26,6 +26,8 @@ class AccountRecordModel {
   final String categoryType; // 'EXPENSE' or 'INCOME'
   final int amount;          // 항상 양수 — categoryType으로 수입/지출 구분
   final int? scheduleId;
+  final int? paymentMethodId;
+  final String? paymentMethodName;
 
   const AccountRecordModel({
     required this.id,
@@ -34,6 +36,8 @@ class AccountRecordModel {
     required this.categoryType,
     required this.amount,
     this.scheduleId,
+    this.paymentMethodId,
+    this.paymentMethodName,
   });
 
   factory AccountRecordModel.fromJson(Map<String, dynamic> json) =>
@@ -45,5 +49,7 @@ class AccountRecordModel {
         // amount는 Long → int 캐스팅 (Dart int는 64bit이므로 안전)
         amount: (json['amount'] as num).toInt(),
         scheduleId: json['scheduleId'] as int?,
+        paymentMethodId: (json['paymentMethodId'] as num?)?.toInt(),
+        paymentMethodName: json['paymentMethodName'] as String?,
       );
 }

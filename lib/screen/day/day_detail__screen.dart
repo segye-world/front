@@ -63,43 +63,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _scheduleBlocks = <_ScheduleBlock>[
-      _ScheduleBlock(
-        id: 1,
-        title: '아침 공부',
-        startHour: 7,
-        endHour: 10,
-        color: const Color(0xFFFFD7D7),
-      ),
-      _ScheduleBlock(
-        id: 2,
-        title: '영어 공부',
-        startHour: 10,
-        endHour: 16,
-        color: const Color(0xFFFFE9CC),
-      ),
-    ];
-
+    _scheduleBlocks = <_ScheduleBlock>[];
     _sections = <_TodoSectionState>[
       _TodoSectionState(
-        id: 1,
-        title: '아침 공부 07:00-09:30',
-        color: const Color(0xFFFFD7D7),
-        items: <_TodoItemState>[
-          _TodoItemState(id: 1, label: '백준 알고리즘 실버 2문제'),
-          _TodoItemState(id: 2, label: '듀오링고 영어 1회차'),
-          _TodoItemState(id: 3, label: '소시구조 8주차 복습'),
-          _TodoItemState(id: 4, label: '운영체제 8주차 복습'),
-        ],
-      ),
-      _TodoSectionState(
-        id: 2,
-        title: '영어 공부 10:00-16:30',
-        color: const Color(0xFFFFE9CC),
-        items: <_TodoItemState>[],
-      ),
-      _TodoSectionState(
-        id: 3,
+        id: 0,
         title: '일정 외 할일',
         color: const Color(0xFFD6D6D6),
         items: <_TodoItemState>[],
