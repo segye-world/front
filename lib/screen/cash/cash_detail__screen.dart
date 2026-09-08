@@ -170,7 +170,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   }
 
   void _openAllRecords(BuildContext context) {
-    Navigator.of(context).pushNamed(Routes.cashRecords);
+    Navigator.of(context).pushNamed(Routes.cashRecords).then((_) => _loadData());
   }
 
   void _showAddTransactionDialog() {
@@ -189,10 +189,19 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         incomeCategories: incomeCats.isNotEmpty ? incomeCats : ['기타'],
         onSave: (amount, categoryName, isExpense) async {
           if (_categories.isEmpty) return;
-          final cat = _categories.firstWhere(
-            (c) => c.name == categoryName,
-            orElse: () => _categories.first,
-          );
+          final categoryType = isExpense ? 'EXPENSE' : 'INCOME';
+          final cat = _categories
+              .where((category) =>
+                  category.name == categoryName && category.type == categoryType)
+              .firstOrNull;
+          if (cat == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('선택한 카테고리를 찾을 수 없습니다.')),
+              );
+            }
+            return;
+          }
           try {
             await AccountRecordApi.create(
               amount: amount,
@@ -200,6 +209,11 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
               date: _dateStr(DateTime.now()),
             );
             await _loadData();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(isExpense ? '지출을 추가했습니다.' : '수입을 추가했습니다.')),
+              );
+            }
           } catch (_) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(

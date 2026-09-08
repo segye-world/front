@@ -19,6 +19,10 @@ class AuthApi {
   }
 
   Future<String> login({required String email, required String password}) async {
+    // 새 로그인에는 기존 세션이 필요하지 않습니다. 오래되었거나 유효하지
+    // 않은 토큰이 인터셉터를 통해 로그인 요청에 실리는 것을 방지합니다.
+    await _client.tokenStorage.clearAll();
+
     final response = await _client.dio.post<Map<String, dynamic>>(
       '${ApiConfig.apiPrefix}/auth/login',
       data: {
