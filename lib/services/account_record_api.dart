@@ -21,17 +21,19 @@ class AccountRecordApi {
         .toList();
   }
 
-  // 친구 백엔드 요청 형식: { categoryId, amount, transactionTime, scheduleId }
+  // 요청 형식: { categoryId, paymentMethodId, amount, transactionTime, scheduleId }
   // amount: 항상 양수 전송 (categoryType으로 수입/지출 구분)
   static Future<AccountRecordModel> create({
     required int amount,
     required int categoryId,
     int? scheduleId,
+    int? paymentMethodId,
     required String date, // YYYY-MM-DD
   }) async {
     final response = await ApiClient.post('/api/v1/account-records', {
       'categoryId': categoryId,
       'amount': amount,
+      if (paymentMethodId != null) 'paymentMethodId': paymentMethodId,
       'transactionTime': '${date}T00:00:00',
       if (scheduleId != null) 'scheduleId': scheduleId,
     });
