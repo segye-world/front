@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
+import '../../models/payment_method_model.dart';
+import '../../models/schedule_model.dart';
+import '../../models/todo_model.dart';
 import '../../routes/routes.dart';
 import '../../services/account_record_api.dart';
 import '../../services/category_api.dart';
+import '../../services/finance_settings_api.dart';
+import '../../services/payment_method_api.dart';
 import '../../services/schedule_api.dart';
+import '../../services/todo_api.dart';
 
 class DayDetailScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -28,6 +34,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   late final List<_TodoSectionState> _sections;
   late final List<AccountRecordModel> _financeEntries;
   List<CategoryModel> _categories = const [];
+  List<PaymentMethodModel> _paymentMethods = const [];
+  int? _selectedPaymentMethodId;
 
   _DetailMode _detailMode = _DetailMode.todo;
   int? _editingSectionId;
@@ -63,43 +71,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _scheduleBlocks = <_ScheduleBlock>[
-      _ScheduleBlock(
-        id: 1,
-        title: '아침 공부',
-        startHour: 7,
-        endHour: 10,
-        color: const Color(0xFFFFD7D7),
-      ),
-      _ScheduleBlock(
-        id: 2,
-        title: '영어 공부',
-        startHour: 10,
-        endHour: 16,
-        color: const Color(0xFFFFE9CC),
-      ),
-    ];
-
+    _scheduleBlocks = <_ScheduleBlock>[];
     _sections = <_TodoSectionState>[
       _TodoSectionState(
-        id: 1,
-        title: '아침 공부 07:00-09:30',
-        color: const Color(0xFFFFD7D7),
-        items: <_TodoItemState>[
-          _TodoItemState(id: 1, label: '백준 알고리즘 실버 2문제'),
-          _TodoItemState(id: 2, label: '듀오링고 영어 1회차'),
-          _TodoItemState(id: 3, label: '소시구조 8주차 복습'),
-          _TodoItemState(id: 4, label: '운영체제 8주차 복습'),
-        ],
-      ),
-      _TodoSectionState(
-        id: 2,
-        title: '영어 공부 10:00-16:30',
-        color: const Color(0xFFFFE9CC),
-        items: <_TodoItemState>[],
-      ),
-      _TodoSectionState(
-        id: 3,
+        id: 0,
         title: '일정 외 할일',
         color: const Color(0xFFD6D6D6),
         items: <_TodoItemState>[],
@@ -108,6 +83,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
     _financeEntries = <AccountRecordModel>[];
     _loadFinanceData();
+    _loadScheduleAndTodos();
   }
 
   @override
@@ -130,9 +106,11 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
   Future<void> _loadFinanceData() async {
     try {
+      await FinanceSettingsApi.ensureDefaults();
       final results = await Future.wait([
         AccountRecordApi.fetchByDate(_dateString),
         CategoryApi.fetchAll(),
+        PaymentMethodApi.fetchAll(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -140,11 +118,64 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           ..clear()
           ..addAll(results[0] as List<AccountRecordModel>);
         _categories = results[1] as List<CategoryModel>;
+        _paymentMethods = results[2] as List<PaymentMethodModel>;
         _selectedFinanceCategory ??= _expenseCategories.firstOrNull;
+        _selectedPaymentMethodId ??= _paymentMethods.firstOrNull?.id;
       });
     } catch (_) {
       // Keep the schedule screen usable when finance data is temporarily unavailable.
     }
+  }
+
+  Future<void> _loadScheduleAndTodos() async {
+    try {
+      final results = await Future.wait([
+        ScheduleApi.fetchByDate(_dateString),
+        TodoApi.fetchByDate(_dateString),
+      ]);
+      if (!mounted) return;
+      final schedules = results[0] as List<ScheduleModel>;
+      final todos = results[1] as List<TodoModel>;
+      final blocks = schedules.map((schedule) => _ScheduleBlock(
+        id: schedule.id,
+        title: schedule.title,
+        startHour: schedule.startHour,
+        endHour: schedule.endHour,
+        color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.45),
+      )).toList();
+      final sections = schedules.map((schedule) => _TodoSectionState(
+        id: schedule.id,
+        title: '${schedule.title} ${_formatHour(schedule.startHour.toDouble())}-${_formatHour(schedule.endHour.toDouble())}',
+        color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.35),
+        items: todos.where((todo) => todo.scheduleId == schedule.id).map(
+          (todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
+        ).toList(),
+      )).toList()
+        ..add(_TodoSectionState(
+          id: 0,
+          title: '일정 외 할일',
+          color: const Color(0xFFD6D6D6),
+          items: todos.where((todo) => todo.scheduleId == null).map(
+            (todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
+          ).toList(),
+        ));
+      setState(() {
+        _scheduleBlocks
+          ..clear()
+          ..addAll(blocks);
+        _sections
+          ..clear()
+          ..addAll(sections);
+      });
+    } catch (_) {
+      // Keep the empty state visible until the schedule/todo APIs are available.
+    }
+  }
+
+  Color _colorFromHex(String value) {
+    final hex = value.replaceFirst('#', '');
+    final rgb = hex.length == 8 ? hex.substring(2) : hex;
+    return Color(int.parse('FF$rgb', radix: 16));
   }
 
   void _setMode(_DetailMode mode) {
@@ -156,12 +187,15 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     });
   }
 
-  void _toggleTodo(int sectionId, int itemId, bool? checked) {
-    final section = _sectionById(sectionId);
-    final item = section.items.firstWhere((element) => element.id == itemId);
-    setState(() {
-      item.isDone = checked ?? false;
-    });
+  Future<void> _toggleTodo(int sectionId, int itemId, bool? checked) async {
+    final item = _sectionById(sectionId).items.firstWhere((element) => element.id == itemId);
+    final isDone = checked ?? false;
+    setState(() => item.isDone = isDone);
+    try {
+      await TodoApi.update(itemId, isDone: isDone);
+    } catch (_) {
+      if (mounted) setState(() => item.isDone = !isDone);
+    }
   }
 
   void _openEditMode(int sectionId) {
@@ -172,33 +206,54 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   }
 
   void _closeEditMode() {
-    setState(() {
-      _editingSectionId = null;
-    });
+    setState(() => _editingSectionId = null);
   }
 
-  void _updateTodoLabel(int sectionId, int itemId, String value) {
+  Future<void> _updateTodoLabel(int sectionId, int itemId, String value) async {
+    final item = _sectionById(sectionId).items.firstWhere((element) => element.id == itemId);
+    final previous = item.label;
+    setState(() => item.label = value);
+    try {
+      await TodoApi.update(itemId, label: value);
+    } catch (_) {
+      if (mounted) setState(() => item.label = previous);
+    }
+  }
+
+  Future<void> _removeTodo(int sectionId, int itemId) async {
     final section = _sectionById(sectionId);
     final item = section.items.firstWhere((element) => element.id == itemId);
-    item.label = value;
+    setState(() => section.items.remove(item));
+    try {
+      await TodoApi.delete(itemId);
+    } catch (_) {
+      if (mounted) setState(() => section.items.add(item));
+    }
   }
 
-  void _removeTodo(int sectionId, int itemId) {
-    setState(() {
-      _sectionById(sectionId).items.removeWhere((item) => item.id == itemId);
-    });
-  }
-
-  void _addTodoToSection(int sectionId) {
+  Future<void> _addTodoToSection(int sectionId) async {
     final text = _newTodoController.text.trim();
     if (text.isEmpty) return;
-
-    setState(() {
-      _sectionById(sectionId).items.add(
-        _TodoItemState(id: DateTime.now().microsecondsSinceEpoch, label: text),
+    try {
+      final todo = await TodoApi.create(
+        label: text,
+        date: _dateString,
+        scheduleId: sectionId == 0 ? null : sectionId,
       );
-      _newTodoController.clear();
-    });
+      if (!mounted) return;
+      setState(() {
+        _sectionById(sectionId).items.add(
+          _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
+        );
+        _newTodoController.clear();
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('할 일 저장에 실패했습니다.')),
+        );
+      }
+    }
   }
 
   void _saveSectionEdits() {
@@ -281,9 +336,11 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           category.type == (_financeType == _FinanceType.expense ? 'EXPENSE' : 'INCOME'),
     ).firstOrNull;
 
-    if (amount != null && amount > 0 && selectedCategory == null) {
+    final selectedPaymentMethod = _paymentMethods.where((method) => method.id == _selectedPaymentMethodId).firstOrNull;
+
+    if (amount != null && amount > 0 && (selectedCategory == null || selectedPaymentMethod == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('수입·지출 카테고리를 불러온 뒤 다시 시도해 주세요.')),
+        const SnackBar(content: Text('수입·지출 카테고리와 지출 수단을 불러온 뒤 다시 시도해 주세요.')),
       );
       return;
     }
@@ -298,14 +355,19 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       );
 
       AccountRecordModel? createdRecord;
-      if (amount != null && amount > 0 && selectedCategory != null) {
+      if (amount != null && amount > 0 && selectedCategory != null && selectedPaymentMethod != null) {
         createdRecord = await AccountRecordApi.create(
           amount: amount,
           categoryId: selectedCategory.id,
+          paymentMethodId: selectedPaymentMethod.id,
           scheduleId: schedule.id,
           date: _dateString,
         );
       }
+
+      final createdTodos = await Future.wait(_draftTodos.map(
+        (todo) => TodoApi.create(label: todo, date: _dateString, scheduleId: schedule.id),
+      ));
 
       if (!mounted) return;
       setState(() {
@@ -325,13 +387,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           id: schedule.id,
           title: '$title ${_formatHour(_startHour)}-${_formatHour(_endHour)}',
           color: color.withValues(alpha: 0.35),
-          items: _draftTodos
-              .map(
-                (todo) => _TodoItemState(
-                  id: DateTime.now().microsecondsSinceEpoch + todo.length,
-                  label: todo,
-                ),
-              )
+          items: createdTodos
+              .map((todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone))
               .toList(),
         ),
       );
@@ -421,6 +478,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                       financeType: _financeType,
                       activeCategories: _activeCategories,
                       selectedFinanceCategory: _selectedFinanceCategory ?? '',
+                      paymentMethods: _paymentMethods,
+                      selectedPaymentMethodId: _selectedPaymentMethodId,
+                      onPaymentMethodChanged: (value) => setState(() => _selectedPaymentMethodId = value),
                       draftTodos: _draftTodos,
                       onModeSelected: _setMode,
                       onSectionLongPress: _openEditMode,
@@ -477,6 +537,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                       financeType: _financeType,
                       activeCategories: _activeCategories,
                       selectedFinanceCategory: _selectedFinanceCategory ?? '',
+                      paymentMethods: _paymentMethods,
+                      selectedPaymentMethodId: _selectedPaymentMethodId,
+                      onPaymentMethodChanged: (value) => setState(() => _selectedPaymentMethodId = value),
                       draftTodos: _draftTodos,
                       onModeSelected: _setMode,
                       onSectionLongPress: _openEditMode,
@@ -630,6 +693,9 @@ class _DetailPanel extends StatelessWidget {
   final _FinanceType financeType;
   final List<String> activeCategories;
   final String selectedFinanceCategory;
+  final List<PaymentMethodModel> paymentMethods;
+  final int? selectedPaymentMethodId;
+  final ValueChanged<int?> onPaymentMethodChanged;
   final List<String> draftTodos;
   final ValueChanged<_DetailMode> onModeSelected;
   final ValueChanged<int> onSectionLongPress;
@@ -665,6 +731,9 @@ class _DetailPanel extends StatelessWidget {
     required this.financeType,
     required this.activeCategories,
     required this.selectedFinanceCategory,
+    required this.paymentMethods,
+    required this.selectedPaymentMethodId,
+    required this.onPaymentMethodChanged,
     required this.draftTodos,
     required this.onModeSelected,
     required this.onSectionLongPress,
@@ -727,6 +796,9 @@ class _DetailPanel extends StatelessWidget {
                   financeType: financeType,
                   activeCategories: activeCategories,
                   selectedFinanceCategory: selectedFinanceCategory,
+                  paymentMethods: paymentMethods,
+                  selectedPaymentMethodId: selectedPaymentMethodId,
+                  onPaymentMethodChanged: onPaymentMethodChanged,
                   draftTodos: draftTodos,
                   onColorSelected: onColorSelected,
                   onStartHourChanged: onStartHourChanged,
@@ -1064,6 +1136,9 @@ class _ScheduleAddPanel extends StatelessWidget {
   final _FinanceType financeType;
   final List<String> activeCategories;
   final String selectedFinanceCategory;
+  final List<PaymentMethodModel> paymentMethods;
+  final int? selectedPaymentMethodId;
+  final ValueChanged<int?> onPaymentMethodChanged;
   final List<String> draftTodos;
   final ValueChanged<int> onColorSelected;
   final ValueChanged<double> onStartHourChanged;
@@ -1086,6 +1161,9 @@ class _ScheduleAddPanel extends StatelessWidget {
     required this.financeType,
     required this.activeCategories,
     required this.selectedFinanceCategory,
+    required this.paymentMethods,
+    required this.selectedPaymentMethodId,
+    required this.onPaymentMethodChanged,
     required this.draftTodos,
     required this.onColorSelected,
     required this.onStartHourChanged,
@@ -1213,6 +1291,16 @@ class _ScheduleAddPanel extends StatelessWidget {
             title: Text(category, style: const TextStyle(fontSize: 13)),
           ),
         ),
+        const SizedBox(height: 12),
+        const _FieldLabel('지출 수단'),
+        DropdownButtonFormField<int>(
+          value: selectedPaymentMethodId,
+          decoration: const InputDecoration(border: UnderlineInputBorder()),
+          items: paymentMethods
+              .map((method) => DropdownMenuItem(value: method.id, child: Text(method.name)))
+              .toList(),
+          onChanged: onPaymentMethodChanged,
+        ),
         const _FieldLabel('메모'),
         TextField(
           controller: memoController,
@@ -1327,11 +1415,12 @@ class _TodoSectionState {
 class _TodoItemState {
   final int id;
   String label;
-  bool isDone = false;
+  bool isDone;
 
   _TodoItemState({
     required this.id,
     required this.label,
+    this.isDone = false,
   });
 }
 
