@@ -43,9 +43,10 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await _authApi.login(email: email, password: password);
       if (!mounted) return;
+      // 로그인 후 홈은 오늘 날짜의 일정 상세 화면입니다.
       Navigator.of(context).pushReplacementNamed(
-        Routes.main,
-        arguments: {'loginEmail': email},
+        Routes.dayDetail,
+        arguments: DateTime.now(),
       );
     } catch (e) {
       setState(() => _errorMessage =

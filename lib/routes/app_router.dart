@@ -37,8 +37,9 @@ class AppRouter {
           settings: settings,
         );
       case Routes.dayDetail:
-        final args = settings.arguments as DateTime?;
-        final selectedDate = args ?? DateTime.now();
+        // 홈 진입 시 arguments 없이 들어오는 경로도 있어 타입 검사로 방어합니다.
+        final args = settings.arguments;
+        final selectedDate = args is DateTime ? args : DateTime.now();
         return MaterialPageRoute(
           builder: (_) => DayDetailScreen(selectedDate: selectedDate),
           settings: settings,

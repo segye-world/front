@@ -173,9 +173,9 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
                     ],
                   ),
           ),
-          const AppBottomNavBar(currentItem: AppNavItem.mypage),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavBar(currentItem: AppNavItem.mypage),
     );
   }
 

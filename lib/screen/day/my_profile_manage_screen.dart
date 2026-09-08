@@ -172,9 +172,9 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
               ],
             ),
           ),
-          const AppBottomNavBar(currentItem: AppNavItem.mypage),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavBar(currentItem: AppNavItem.mypage),
     );
   }
 }
