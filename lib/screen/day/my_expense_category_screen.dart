@@ -68,13 +68,33 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
       builder: (_) => const _NameFormDialog(title: '지출 수단 추가', hintText: '예: 신용카드, 월급 통장'),
     );
     if (result == null) return;
+    if (_paymentMethods.any((method) => method.name == result) ||
+        _categories.any((category) => category.name == result && category.type == 'INCOME')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('같은 이름의 지출 수단 또는 수입원이 이미 있습니다.')),
+        );
+      }
+      return;
+    }
+    PaymentMethodModel? paymentMethod;
     try {
       // 지출 수단은 수입이 들어오는 곳이기도 하므로 같은 이름의 수입원을 함께 만듭니다.
-      await PaymentMethodApi.create(name: result);
+      paymentMethod = await PaymentMethodApi.create(name: result);
       await CategoryApi.create(name: result, type: 'INCOME');
       await _loadCategories();
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('지출 수단과 연결된 수입원 추가에 실패했습니다.')));
+      // 두 API 호출은 서버 트랜잭션이 아니므로, 두 번째 호출 실패 시 첫 번째 생성값을 되돌립니다.
+      if (paymentMethod != null) {
+        try {
+          await PaymentMethodApi.delete(id: paymentMethod.id);
+        } catch (_) {}
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('지출 수단과 연결된 수입원 추가에 실패했습니다.')),
+        );
+      }
     }
   }
 
