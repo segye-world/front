@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
+import '../../models/payment_method_model.dart';
 import '../../routes/routes.dart';
 import '../../services/account_record_api.dart';
 import '../../services/category_api.dart';
+import '../../services/finance_settings_api.dart';
+import '../../services/payment_method_api.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
 class CashDetailScreen extends StatefulWidget {
@@ -27,6 +30,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   int _todayExpense = 0;
   bool _isLoading = true;
   List<CategoryModel> _categories = [];
+  List<PaymentMethodModel> _paymentMethods = [];
 
   @override
   void initState() {
@@ -37,6 +41,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
+      await FinanceSettingsApi.ensureDefaults();
       final now = DateTime.now();
       final today = _dateStr(now);
       final firstOfMonth = _dateStr(DateTime(now.year, now.month, 1));
@@ -45,11 +50,13 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         AccountRecordApi.fetchByDate(today),
         AccountRecordApi.fetchByDateRange(firstOfMonth, today),
         CategoryApi.fetchAll(),
+        PaymentMethodApi.fetchAll(),
       ]);
 
       final todayRecords = results[0] as List<AccountRecordModel>;
       final monthRecords = results[1] as List<AccountRecordModel>;
       final categories = results[2] as List<CategoryModel>;
+      final paymentMethods = results[3] as List<PaymentMethodModel>;
 
       final todayIncome = todayRecords
           .where((r) => r.categoryType == 'INCOME')
@@ -70,6 +77,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         _todayIncome = todayIncome;
         _todayExpense = todayExpense;
         _categories = categories;
+        _paymentMethods = paymentMethods;
       });
     } catch (_) {
       // show empty state on error
@@ -170,36 +178,40 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   }
 
   void _openAllRecords(BuildContext context) {
-    Navigator.of(context).pushNamed(Routes.cashRecords);
+    Navigator.of(context).pushNamed(Routes.cashRecords).then((_) => _loadData());
   }
 
   void _showAddTransactionDialog() {
-    final expenseCats = _categories.where((c) => c.type == 'EXPENSE').map((c) => c.name).toList();
-    final incomeCats = _categories.where((c) => c.type == 'INCOME').map((c) => c.name).toList();
-    if (expenseCats.isEmpty && incomeCats.isEmpty) {
+    final expenseCategories =
+        _categories.where((category) => category.type == 'EXPENSE').toList();
+    final incomeCategories =
+        _categories.where((category) => category.type == 'INCOME').toList();
+    if (expenseCategories.isEmpty || incomeCategories.isEmpty || _paymentMethods.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('카테고리가 없습니다. 먼저 카테고리를 추가해 주세요.')),
+        const SnackBar(content: Text('카테고리와 지출 수단을 먼저 추가해 주세요.')),
       );
       return;
     }
     showDialog<void>(
       context: context,
       builder: (_) => _AddTransactionDialog(
-        expenseCategories: expenseCats.isNotEmpty ? expenseCats : ['기타'],
-        incomeCategories: incomeCats.isNotEmpty ? incomeCats : ['기타'],
-        onSave: (amount, categoryName, isExpense) async {
-          if (_categories.isEmpty) return;
-          final cat = _categories.firstWhere(
-            (c) => c.name == categoryName,
-            orElse: () => _categories.first,
-          );
+        expenseCategories: expenseCategories,
+        incomeCategories: incomeCategories,
+        paymentMethods: _paymentMethods,
+        onSave: (amount, category, paymentMethod, isExpense) async {
           try {
             await AccountRecordApi.create(
               amount: amount,
-              categoryId: cat.id,
+              categoryId: category.id,
+              paymentMethodId: paymentMethod.id,
               date: _dateStr(DateTime.now()),
             );
             await _loadData();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(isExpense ? '지출을 추가했습니다.' : '수입을 추가했습니다.')),
+              );
+            }
           } catch (_) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -456,13 +468,20 @@ class _RecentRecordTile extends StatelessWidget {
 // ─── Add Transaction Dialog ──────────────────────────────────────────────────
 
 class _AddTransactionDialog extends StatefulWidget {
-  final List<String> expenseCategories;
-  final List<String> incomeCategories;
-  final Future<void> Function(int amount, String categoryName, bool isExpense) onSave;
+  final List<CategoryModel> expenseCategories;
+  final List<CategoryModel> incomeCategories;
+  final List<PaymentMethodModel> paymentMethods;
+  final Future<void> Function(
+    int amount,
+    CategoryModel category,
+    PaymentMethodModel paymentMethod,
+    bool isExpense,
+  ) onSave;
 
   const _AddTransactionDialog({
     required this.expenseCategories,
     required this.incomeCategories,
+    required this.paymentMethods,
     required this.onSave,
   });
 
@@ -473,17 +492,17 @@ class _AddTransactionDialog extends StatefulWidget {
 class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   bool _isExpense = true;
   final _amountCtrl = TextEditingController();
-  late String _selectedCategory;
+  late CategoryModel _selectedCategory;
+  late PaymentMethodModel _selectedPaymentMethod;
 
-  List<String> get _activeCategories =>
+  List<CategoryModel> get _activeCategories =>
       _isExpense ? widget.expenseCategories : widget.incomeCategories;
 
   @override
   void initState() {
     super.initState();
-    _selectedCategory = widget.expenseCategories.isNotEmpty
-        ? widget.expenseCategories.first
-        : '기타';
+    _selectedCategory = widget.expenseCategories.first;
+    _selectedPaymentMethod = widget.paymentMethods.first;
   }
 
   @override
@@ -492,130 +511,104 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
     super.dispose();
   }
 
+  void _changeType(bool isExpense) {
+    setState(() {
+      _isExpense = isExpense;
+      _selectedCategory = _activeCategories.first;
+      // 수입 카테고리와 지출 수단의 이름을 맞춰, 같은 자금 흐름으로 기록합니다.
+      final linkedMethod = widget.paymentMethods.where(
+        (method) => method.name == _selectedCategory.name,
+      ).firstOrNull;
+      if (linkedMethod != null) _selectedPaymentMethod = linkedMethod;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final activeColor =
-        _isExpense ? const Color(0xFFE05353) : const Color(0xFF5AAD72);
+    final activeColor = _isExpense ? const Color(0xFFE05353) : const Color(0xFF5AAD72);
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              child: Row(
-                children: [
-                  _TypeTab(
-                    label: '지출 내역',
-                    isActive: _isExpense,
-                    activeColor: const Color(0xFFE05353),
-                    onTap: () => setState(() {
-                      _isExpense = true;
-                      _selectedCategory = widget.expenseCategories.isNotEmpty
-                          ? widget.expenseCategories.first
-                          : '기타';
-                    }),
-                  ),
-                  _TypeTab(
-                    label: '수입 내역',
-                    isActive: !_isExpense,
-                    activeColor: const Color(0xFF5AAD72),
-                    onTap: () => setState(() {
-                      _isExpense = false;
-                      _selectedCategory = widget.incomeCategories.isNotEmpty
-                          ? widget.incomeCategories.first
-                          : '기타';
-                    }),
-                  ),
-                ],
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: Row(children: [
+              _TypeTab(label: '지출 내역', isActive: _isExpense, activeColor: const Color(0xFFE05353), onTap: () => _changeType(true)),
+              _TypeTab(label: '수입 내역', isActive: !_isExpense, activeColor: const Color(0xFF5AAD72), onTap: () => _changeType(false)),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _AmountField(controller: _amountCtrl, isExpense: _isExpense, color: activeColor),
+              const SizedBox(height: 16),
+              const _DialogLabel('카테고리'),
+              DropdownButtonFormField<CategoryModel>(
+                value: _selectedCategory,
+                isExpanded: true,
+                items: _activeCategories.map((category) => DropdownMenuItem(value: category, child: Text(category.name))).toList(),
+                onChanged: (category) => setState(() {
+                  if (category != null) _selectedCategory = category;
+                }),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8F9FB),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE0E3E8)),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          _isExpense ? '−' : '+',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: activeColor),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: TextField(
-                            controller: _amountCtrl,
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.right,
-                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              hintText: '0',
-                              hintStyle: TextStyle(fontSize: 22, color: Colors.black26),
-                            ),
-                          ),
-                        ),
-                        const Text('원', style: TextStyle(fontSize: 14, color: Colors.black38)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 6),
-                    child: Text('카테고리', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
-                  ),
-                  ..._activeCategories.map(
-                    (cat) => RadioListTile<String>(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: cat,
-                      groupValue: _selectedCategory,
-                      onChanged: (v) {
-                        if (v != null) setState(() => _selectedCategory = v);
-                      },
-                      activeColor: const Color(0xFF6F7A9B),
-                      title: Text(cat, style: const TextStyle(fontSize: 13)),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: () async {
-                        final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
-                        if (amount <= 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('금액을 입력해 주세요.')),
-                          );
-                          return;
-                        }
-                        Navigator.pop(context);
-                        await widget.onSave(amount, _selectedCategory, _isExpense);
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: activeColor,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('기록 저장하기'),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              const _DialogLabel('지출 수단'),
+              DropdownButtonFormField<PaymentMethodModel>(
+                value: _selectedPaymentMethod,
+                isExpanded: true,
+                items: widget.paymentMethods.map((method) => DropdownMenuItem(value: method, child: Text(method.name))).toList(),
+                onChanged: (method) => setState(() {
+                  if (method != null) _selectedPaymentMethod = method;
+                }),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(height: 20),
+              SizedBox(width: double.infinity, height: 48, child: FilledButton(
+                onPressed: () async {
+                  final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
+                  if (amount <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('금액을 입력해 주세요.')));
+                    return;
+                  }
+                  Navigator.pop(context);
+                  await widget.onSave(amount, _selectedCategory, _selectedPaymentMethod, _isExpense);
+                },
+                style: FilledButton.styleFrom(backgroundColor: activeColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: const Text('기록 저장하기'),
+              )),
+            ]),
+          ),
+        ]),
       ),
     );
   }
+}
+
+class _DialogLabel extends StatelessWidget {
+  final String text;
+  const _DialogLabel(this.text);
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
+  );
+}
+
+class _AmountField extends StatelessWidget {
+  final TextEditingController controller;
+  final bool isExpense;
+  final Color color;
+  const _AmountField({required this.controller, required this.isExpense, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+    decoration: BoxDecoration(color: const Color(0xFFF8F9FB), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE0E3E8))),
+    child: Row(children: [
+      Text(isExpense ? '−' : '+', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color)),
+      const SizedBox(width: 4),
+      Expanded(child: TextField(controller: controller, keyboardType: TextInputType.number, textAlign: TextAlign.right, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700), decoration: const InputDecoration(border: InputBorder.none, hintText: '0', hintStyle: TextStyle(fontSize: 22, color: Colors.black26)))),
+      const Text('원', style: TextStyle(fontSize: 14, color: Colors.black38)),
+    ]),
+  );
 }
 
 class _TypeTab extends StatelessWidget {

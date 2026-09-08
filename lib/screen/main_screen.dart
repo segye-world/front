@@ -17,29 +17,11 @@ class _MainScreenState extends State<MainScreen> {
   late DateTime _selectedDate = _initialDate;
   _MainTab _selectedTab = _MainTab.schedule;
 
-  final List<_ScheduleItem> _scheduleItems = [
-    _ScheduleItem(
-      label: '아침 운동',
-      timeRange: '07:00 - 09:30',
-      color: _primaryPink,
-    ),
-    _ScheduleItem(
-      label: '친구 약속',
-      timeRange: '11:00 - 15:30',
-      color: const Color(0xFF1F1F1F),
-    ),
-  ];
+  final List<_ScheduleItem> _scheduleItems = const [];
 
-  final List<_AccountRecord> _records = [
-    _AccountRecord(title: '월급', category: '수입', amount: 3200000),
-    _AccountRecord(title: '점심', category: '지출', amount: -12000),
-    _AccountRecord(title: '교통', category: '지출', amount: -3500),
-  ];
+  final List<_AccountRecord> _records = const [];
 
-  final List<_TodoItem> _todoItems = [
-    _TodoItem(label: '백준 알고리즘 실버 2문제'),
-    _TodoItem(label: '두잉코딩 영어 1일차'),
-  ];
+  final List<_TodoItem> _todoItems = const [];
 
   String _formatDate(DateTime date) => '${date.month}월 ${date.day}일';
 
@@ -179,9 +161,9 @@ class _MainScreenState extends State<MainScreen> {
   List<Widget> _buildTabContent() {
     switch (_selectedTab) {
       case _MainTab.schedule:
-        return [..._scheduleItems.map((item) => _ScheduleCard(item: item))];
+        return _scheduleItems.isEmpty ? [const _EmptyTabMessage('등록된 일정이 없어요.')] : [..._scheduleItems.map((item) => _ScheduleCard(item: item))];
       case _MainTab.todo:
-        return [..._todoItems.map((item) => _TodoItemTile(item: item))];
+        return _todoItems.isEmpty ? [const _EmptyTabMessage('등록된 할 일이 없어요.')] : [..._todoItems.map((item) => _TodoItemTile(item: item))];
       case _MainTab.consumption:
         return [
           const Text(
@@ -189,7 +171,7 @@ class _MainScreenState extends State<MainScreen> {
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          ..._records.map((record) => _AccountRecordTile(record: record)),
+          if (_records.isEmpty) const _EmptyTabMessage('등록된 소비 내역이 없어요.') else ..._records.map((record) => _AccountRecordTile(record: record)),
         ];
     }
   }
@@ -275,6 +257,16 @@ class _TabChip extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EmptyTabMessage extends StatelessWidget {
+  final String text;
+  const _EmptyTabMessage(this.text);
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 20),
+    child: Center(child: Text(text, style: const TextStyle(fontSize: 12, color: Colors.black45))),
+  );
 }
 
 class _ScheduleCard extends StatelessWidget {
