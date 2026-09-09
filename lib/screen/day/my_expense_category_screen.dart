@@ -155,6 +155,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
 
     return BaseScaffold(
       title: '지출 수단 및 카테고리',
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           Expanded(
