@@ -44,6 +44,19 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   _DetailMode _detailMode = _DetailMode.todo;
   int? _editingSectionId;
 
+  /// 타임라인을 접기 위해 워크스페이스의 상태에 직접 닿아야 합니다.
+  /// 시간을 고르고 나면 상세 패널(추가 폼)이 보이도록 되돌려 줘야 하기 때문입니다.
+  final _timelineKey = GlobalKey<_TimelineWorkspaceState>();
+
+  /// 타임라인에서 칠해 둔 시간대. 탭한 칸이 anchor, 드래그를 따라오는 칸이 focus 입니다.
+  /// 위로 드래그하면 focus < anchor 가 되므로 실제 범위는 두 값을 정렬해서 씁니다.
+  int? _selectionAnchorHour;
+  int? _selectionFocusHour;
+
+  /// 롱프레스가 시작된 지점이 칸 안에서 몇 px 이었는지. 드래그 중 몇 칸을 지났는지
+  /// 정확히 계산하려면 이동량만으로는 부족하고 시작 위치가 함께 필요합니다.
+  double _dragOriginDy = 0;
+
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   final _memoController = TextEditingController();
@@ -273,7 +286,90 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       if (mode != _DetailMode.todo) {
         _editingSectionId = null;
       }
+      // 추가 폼을 벗어나면 칠해 둔 시간대도 함께 지웁니다.
+      if (mode != _DetailMode.add) {
+        _selectionAnchorHour = null;
+        _selectionFocusHour = null;
+      }
     });
+  }
+
+  // ── 타임라인 시간대 선택 ────────────────────────────────────────────────
+
+  /// 칠해진 구간의 시작 시(포함). 선택이 없으면 null.
+  int? get _selectionStartHour {
+    final anchor = _selectionAnchorHour;
+    final focus = _selectionFocusHour;
+    if (anchor == null || focus == null) return null;
+    return anchor < focus ? anchor : focus;
+  }
+
+  /// 칠해진 구간의 끝 시(제외). 13시 한 칸만 골랐으면 14 입니다.
+  int? get _selectionEndHour {
+    final anchor = _selectionAnchorHour;
+    final focus = _selectionFocusHour;
+    if (anchor == null || focus == null) return null;
+    return (anchor > focus ? anchor : focus) + 1;
+  }
+
+  /// 탭 한 번은 그 시간 한 칸을 고릅니다. 이미 그 한 칸만 골라져 있으면 선택을 해제해,
+  /// 잘못 누른 경우 같은 자리를 다시 눌러 되돌릴 수 있게 합니다.
+  void _onTimelineHourTap(int hour) {
+    setState(() {
+      if (_selectionAnchorHour == hour && _selectionFocusHour == hour) {
+        _selectionAnchorHour = null;
+        _selectionFocusHour = null;
+      } else {
+        _selectionAnchorHour = hour;
+        _selectionFocusHour = hour;
+      }
+    });
+  }
+
+  void _onTimelineHourDragStart(int hour, double localDy) {
+    _dragOriginDy = localDy;
+    setState(() {
+      _selectionAnchorHour = hour;
+      _selectionFocusHour = hour;
+    });
+  }
+
+  /// 롱프레스는 시작한 칸이 계속 이동 이벤트를 받으므로, 시작 칸을 기준으로
+  /// 현재 손가락이 몇 칸 아래(위)에 있는지 계산해 focus 를 옮깁니다.
+  void _onTimelineHourDragUpdate(int originHour, double dyFromOrigin) {
+    final y = _dragOriginDy + dyFromOrigin;
+    final delta = (y / _kTimelineRowHeight).floor();
+    final next = (originHour + delta).clamp(0, 23);
+    if (next == _selectionFocusHour) return;
+    setState(() => _selectionFocusHour = next);
+  }
+
+  void _clearTimelineSelection() {
+    setState(() {
+      _selectionAnchorHour = null;
+      _selectionFocusHour = null;
+    });
+  }
+
+  /// 칠한 구간을 그대로 추가 폼의 시작·종료 시간으로 넘깁니다.
+  /// 타임라인이 펼쳐진 상태에서는 폼이 화면 밖으로 밀려 있으므로 같이 접어 줍니다.
+  void _startAddFromSelection() {
+    final start = _selectionStartHour;
+    final end = _selectionEndHour;
+    if (start == null || end == null) return;
+
+    final anchor = _selectionAnchorHour;
+    final focus = _selectionFocusHour;
+
+    _prepareAddMode();
+    setState(() {
+      _startHour = start.toDouble();
+      _endHour = end.toDouble();
+      // 접힌 레일에서도 어느 구간을 담았는지 보이도록 칠한 상태를 유지합니다.
+      _selectionAnchorHour = anchor;
+      _selectionFocusHour = focus;
+    });
+    _timelineKey.currentState?.collapse();
   }
 
   Future<void> _toggleTodo(int sectionId, int itemId, bool? checked) async {
@@ -366,6 +462,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _endHour = 15;
       _financeType = _FinanceType.expense;
       _selectedFinanceCategory = _expenseCategories.firstOrNull;
+      // FAB 로 빈 폼을 열 때는 타임라인에 칠해 둔 구간도 같이 지웁니다.
+      // 타임라인에서 시작한 경우에는 _startAddFromSelection 이 다시 칠해 줍니다.
+      _selectionAnchorHour = null;
+      _selectionFocusHour = null;
     });
   }
 
@@ -472,6 +572,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         _financeEntries.insert(0, createdRecord);
       }
 
+      // 저장된 구간은 이제 일정 블록으로 칠해지므로 선택 표시는 지웁니다.
+      _selectionAnchorHour = null;
+      _selectionFocusHour = null;
+
       _detailMode = _DetailMode.todo;
       });
     } catch (_) {
@@ -576,9 +680,17 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       ),
       body: SafeArea(
         child: _TimelineWorkspace(
+          key: _timelineKey,
           blocks: _scheduleBlocks,
           baseDate: _selectedDate,
           onBlockLongPress: _openEditMode,
+          selectionStartHour: _selectionStartHour,
+          selectionEndHour: _selectionEndHour,
+          onHourTap: _onTimelineHourTap,
+          onHourDragStart: _onTimelineHourDragStart,
+          onHourDragUpdate: _onTimelineHourDragUpdate,
+          onSelectionCleared: _clearTimelineSelection,
+          onSelectionConfirmed: _startAddFromSelection,
           panel: _buildDetailPanel(),
         ),
       ),
@@ -595,6 +707,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     );
   }
 }
+
+/// 상세 타임라인에서 한 시간이 차지하는 높이.
+/// 드래그로 몇 칸을 지났는지 계산할 때도 같은 값을 써야 하므로 상수로 둡니다.
+const double _kTimelineRowHeight = 28;
 
 /// 해당 시각을 덮는 일정 블록을 찾습니다.
 _ScheduleBlock? _blockForHour(List<_ScheduleBlock> blocks, int hour) {
@@ -624,12 +740,31 @@ class _TimelineWorkspace extends StatefulWidget {
   /// 연속 타임라인이 시작하는 날짜. 아래로 내리면 이 날짜부터 하루씩 이어집니다.
   final DateTime baseDate;
   final ValueChanged<int> onBlockLongPress;
+
+  /// 칠해 둔 시간대. start 는 포함, end 는 제외입니다.
+  final int? selectionStartHour;
+  final int? selectionEndHour;
+
+  final ValueChanged<int> onHourTap;
+  final void Function(int hour, double localDy) onHourDragStart;
+  final void Function(int originHour, double dyFromOrigin) onHourDragUpdate;
+  final VoidCallback onSelectionCleared;
+  final VoidCallback onSelectionConfirmed;
+
   final Widget panel;
 
   const _TimelineWorkspace({
+    super.key,
     required this.blocks,
     required this.baseDate,
     required this.onBlockLongPress,
+    required this.selectionStartHour,
+    required this.selectionEndHour,
+    required this.onHourTap,
+    required this.onHourDragStart,
+    required this.onHourDragUpdate,
+    required this.onSelectionCleared,
+    required this.onSelectionConfirmed,
     required this.panel,
   });
 
@@ -658,6 +793,9 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
   void _open() => _controller.forward();
 
   void _close() => _controller.reverse();
+
+  /// 시간대를 고른 뒤 상세 패널(추가 폼)이 보이도록 화면 쪽에서 접어 달라고 부를 수 있습니다.
+  void collapse() => _close();
 
   void _onDragUpdate(DragUpdateDetails details) {
     if (_travel <= 0) return;
@@ -743,6 +881,13 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
                                   // 접혀 있으면 납작한 레일에 가려 보이지 않으므로,
                                   // 그 위에서의 세로 드래그가 몰래 스크롤되지 않게 막습니다.
                                   scrollEnabled: t > 0,
+                                  // 가려진 동안에는 시간대 선택도 받지 않습니다.
+                                  selectionEnabled: t > 0.99,
+                                  selectionStartHour: widget.selectionStartHour,
+                                  selectionEndHour: widget.selectionEndHour,
+                                  onHourTap: widget.onHourTap,
+                                  onHourDragStart: widget.onHourDragStart,
+                                  onHourDragUpdate: widget.onHourDragUpdate,
                                   onBlockLongPress: widget.onBlockLongPress,
                                 ),
                               ),
@@ -758,6 +903,10 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
                                       opacity: 1 - t,
                                       child: _CompactTimelineRail(
                                         blocks: widget.blocks,
+                                        selectionStartHour:
+                                            widget.selectionStartHour,
+                                        selectionEndHour:
+                                            widget.selectionEndHour,
                                       ),
                                     ),
                                   ),
@@ -786,6 +935,22 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
                       ),
                     ),
                   ),
+                  // 칠한 시간대를 확인하고 일정 추가로 넘어가는 바.
+                  // 펼쳐진 타임라인 위에만 뜹니다.
+                  if (t > 0.99 &&
+                      widget.selectionStartHour != null &&
+                      widget.selectionEndHour != null)
+                    Positioned(
+                      left: 0,
+                      right: _TimelineWorkspace.handleWidth,
+                      bottom: 0,
+                      child: _SelectionConfirmBar(
+                        startHour: widget.selectionStartHour!,
+                        endHour: widget.selectionEndHour!,
+                        onCleared: widget.onSelectionCleared,
+                        onConfirmed: widget.onSelectionConfirmed,
+                      ),
+                    ),
                   // 패널을 밀어낸 자리에 남는 얇은 화살표 버튼.
                   if (t > 0)
                     Positioned(
@@ -867,7 +1032,15 @@ class _PanelRevealHandle extends StatelessWidget {
 class _CompactTimelineRail extends StatelessWidget {
   final List<_ScheduleBlock> blocks;
 
-  const _CompactTimelineRail({required this.blocks});
+  /// 타임라인을 접은 뒤에도 어느 구간을 골랐는지 보이도록 함께 칠합니다.
+  final int? selectionStartHour;
+  final int? selectionEndHour;
+
+  const _CompactTimelineRail({
+    required this.blocks,
+    required this.selectionStartHour,
+    required this.selectionEndHour,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -880,12 +1053,18 @@ class _CompactTimelineRail extends StatelessWidget {
         children: List.generate(24, (hour) {
           final block = _blockForHour(blocks, hour);
           final isMajorTick = hour % 6 == 0;
+          final isSelected = selectionStartHour != null &&
+              selectionEndHour != null &&
+              hour >= selectionStartHour! &&
+              hour < selectionEndHour!;
 
           return Expanded(
             child: Container(
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: block?.color,
+                color: isSelected
+                    ? _DayDetailScreenState._accentColor
+                    : block?.color,
                 border: Border(
                   top: BorderSide(
                     color: isMajorTick
@@ -926,12 +1105,29 @@ class _DetailedTimeline extends StatelessWidget {
 
   /// 타임라인이 접혀 보이지 않을 때는 스크롤을 잠급니다.
   final bool scrollEnabled;
+
+  /// 완전히 펼쳐졌을 때만 시간대 선택을 받습니다.
+  final bool selectionEnabled;
+
+  /// 칠해 둔 시간대. start 포함, end 제외.
+  final int? selectionStartHour;
+  final int? selectionEndHour;
+
+  final ValueChanged<int> onHourTap;
+  final void Function(int hour, double localDy) onHourDragStart;
+  final void Function(int originHour, double dyFromOrigin) onHourDragUpdate;
   final ValueChanged<int> onBlockLongPress;
 
   const _DetailedTimeline({
     required this.blocks,
     required this.baseDate,
     required this.scrollEnabled,
+    required this.selectionEnabled,
+    required this.selectionStartHour,
+    required this.selectionEndHour,
+    required this.onHourTap,
+    required this.onHourDragStart,
+    required this.onHourDragUpdate,
     required this.onBlockLongPress,
   });
 
@@ -960,75 +1156,242 @@ class _DetailedTimeline extends StatelessWidget {
           }
 
           final hourValue = slot - 1;
-          final hour = hourValue.toString().padLeft(2, '0');
           // 일정 데이터는 선택된 날짜 것만 있으므로 첫날에만 블록을 칠합니다.
-          final dayBlocks = dayOffset == 0 ? blocks : const <_ScheduleBlock>[];
+          final isBaseDate = dayOffset == 0;
+          final dayBlocks = isBaseDate ? blocks : const <_ScheduleBlock>[];
           final block = _blockForHour(dayBlocks, hourValue);
           // 블록이 시작하는 행에만 제목을 적어 겹쳐 보이지 않게 합니다.
           final isBlockStart = block != null && block.startHour == hourValue;
 
-          return GestureDetector(
-            onLongPress: block == null ? null : () => onBlockLongPress(block.id),
-            child: Container(
-              height: 28,
-              decoration: BoxDecoration(
-                color: block?.color,
-                border: Border(
-                  top: BorderSide(color: Colors.blueGrey.shade200, width: 0.8),
-                ),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 38,
-                    child: Text(
-                      '$hour:00',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: isBlockStart
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            child: Text(
-                              block.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          )
-                        : Row(
-                            children: List.generate(
-                              4,
-                              (lineIndex) => Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      left: BorderSide(
-                                        color: Colors.blueGrey.shade100,
-                                        width: 0.8,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                  ),
-                ],
-              ),
-            ),
+          // 화면의 나머지(할 일·수입지출·추가 폼)가 모두 선택된 날짜 기준이므로,
+          // 이어지는 다음 일자에는 일정을 만들 수 없게 둡니다.
+          final isSelected = isBaseDate &&
+              selectionStartHour != null &&
+              selectionEndHour != null &&
+              hourValue >= selectionStartHour! &&
+              hourValue < selectionEndHour!;
+
+          return _TimelineHourRow(
+            hour: hourValue,
+            block: block,
+            isBlockStart: isBlockStart,
+            isSelected: isSelected,
+            isSelectionStart: isSelected && hourValue == selectionStartHour,
+            // 이미 일정이 있는 칸은 선택 대상에서 빼고, 기존 롱프레스(편집)를 살립니다.
+            interactive: selectionEnabled && isBaseDate && block == null,
+            onTap: onHourTap,
+            onDragStart: onHourDragStart,
+            onDragUpdate: onHourDragUpdate,
+            onBlockLongPress: onBlockLongPress,
           );
         },
+      ),
+    );
+  }
+}
+
+/// 상세 타임라인의 한 시간 칸.
+///
+/// 빈 칸은 탭하면 그 한 시간이 칠해지고, 길게 눌러 위아래로 끌면 여러 시간이
+/// 이어서 칠해집니다. 세로 드래그를 바로 쓰지 않고 롱프레스를 거치는 이유는
+/// 타임라인이 ListView 안에 있어서, 그냥 드래그를 잡으면 스크롤이 죽기 때문입니다.
+class _TimelineHourRow extends StatelessWidget {
+  final int hour;
+  final _ScheduleBlock? block;
+  final bool isBlockStart;
+  final bool isSelected;
+
+  /// 칠해진 구간의 첫 칸에만 시간 범위를 적습니다.
+  final bool isSelectionStart;
+
+  /// 이 칸이 시간대 선택을 받는지. 다음 일자이거나 이미 일정이 있으면 false.
+  final bool interactive;
+
+  final ValueChanged<int> onTap;
+  final void Function(int hour, double localDy) onDragStart;
+  final void Function(int originHour, double dyFromOrigin) onDragUpdate;
+  final ValueChanged<int> onBlockLongPress;
+
+  const _TimelineHourRow({
+    required this.hour,
+    required this.block,
+    required this.isBlockStart,
+    required this.isSelected,
+    required this.isSelectionStart,
+    required this.interactive,
+    required this.onTap,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onBlockLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = hour.toString().padLeft(2, '0');
+    final currentBlock = block;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: interactive ? () => onTap(hour) : null,
+      // 일정이 있는 칸의 롱프레스는 기존처럼 그 일정의 할 일 편집을 엽니다.
+      onLongPress: currentBlock == null ? null : () => onBlockLongPress(currentBlock.id),
+      onLongPressStart:
+          interactive ? (details) => onDragStart(hour, details.localPosition.dy) : null,
+      onLongPressMoveUpdate: interactive
+          ? (details) => onDragUpdate(hour, details.localOffsetFromOrigin.dy)
+          : null,
+      child: Container(
+        height: _kTimelineRowHeight,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _DayDetailScreenState._accentColor.withValues(alpha: 0.55)
+              : currentBlock?.color,
+          border: Border(
+            top: BorderSide(
+              color: isSelected
+                  ? _DayDetailScreenState._accentColor
+                  : Colors.blueGrey.shade200,
+              width: isSelected ? 1.2 : 0.8,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 38,
+              child: Text(
+                '$label:00',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isSelected ? Colors.black87 : Colors.black54,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            Expanded(child: _buildTrailing(currentBlock)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrailing(_ScheduleBlock? currentBlock) {
+    if (isBlockStart && currentBlock != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Text(
+          currentBlock.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+      );
+    }
+
+    if (isSelectionStart) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 6),
+        child: Text(
+          '새 일정',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Colors.black87,
+          ),
+        ),
+      );
+    }
+
+    if (isSelected) return const SizedBox.shrink();
+
+    // 빈 칸은 15분 눈금으로 나눠 둡니다.
+    return Row(
+      children: List.generate(
+        4,
+        (lineIndex) => Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(color: Colors.blueGrey.shade100, width: 0.8),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 칠한 시간대를 확인하고 일정 추가 폼으로 넘어가는 바.
+class _SelectionConfirmBar extends StatelessWidget {
+  final int startHour;
+  final int endHour;
+  final VoidCallback onCleared;
+  final VoidCallback onConfirmed;
+
+  const _SelectionConfirmBar({
+    required this.startHour,
+    required this.endHour,
+    required this.onCleared,
+    required this.onConfirmed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hours = endHour - startHour;
+
+    return Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _DayDetailScreenState._accentColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${_formatHour(startHour.toDouble())} – ${_formatHour(endHour.toDouble())} · $hours시간',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF667195),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: '선택 해제',
+            visualDensity: VisualDensity.compact,
+            onPressed: onCleared,
+            icon: const Icon(Icons.close, size: 18, color: Colors.black45),
+          ),
+          FilledButton(
+            onPressed: onConfirmed,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF6F7A9B),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('일정 추가'),
+          ),
+        ],
       ),
     );
   }
@@ -1622,6 +1985,8 @@ class _ScheduleAddPanel extends StatelessWidget {
               child: _HourSelector(
                 label: '시작 시간',
                 value: startHour,
+                minHour: 0,
+                maxHour: 23,
                 onChanged: onStartHourChanged,
               ),
             ),
@@ -1630,6 +1995,8 @@ class _ScheduleAddPanel extends StatelessWidget {
               child: _HourSelector(
                 label: '종료 시간',
                 value: endHour,
+                minHour: 1,
+                maxHour: 24,
                 onChanged: onEndHourChanged,
               ),
             ),
@@ -1736,30 +2103,44 @@ class _ScheduleAddPanel extends StatelessWidget {
 class _HourSelector extends StatelessWidget {
   final String label;
   final double value;
+
+  /// 고를 수 있는 시각의 범위(양쪽 포함). 서버가 시작은 0~23, 종료는 1~24 를 받으므로
+  /// 종료 선택기는 24:00 까지 담을 수 있어야 합니다.
+  final int minHour;
+  final int maxHour;
   final ValueChanged<double> onChanged;
 
   const _HourSelector({
     required this.label,
     required this.value,
+    required this.minHour,
+    required this.maxHour,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hours = [
+      for (var hour = minHour; hour <= maxHour; hour++) hour.toDouble(),
+    ];
+    // 범위를 벗어난 값이 들어오면 드롭다운이 항목을 찾지 못해 터지므로 걸러 냅니다.
+    final selected = hours.contains(value) ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _FieldLabel(label),
         DropdownButtonFormField<double>(
-          value: value,
+          value: selected,
           decoration: const InputDecoration(border: UnderlineInputBorder()),
-          items: List.generate(
-            24,
-            (index) => DropdownMenuItem<double>(
-              value: index.toDouble(),
-              child: Text(_formatHour(index.toDouble())),
-            ),
-          ),
+          items: hours
+              .map(
+                (hour) => DropdownMenuItem<double>(
+                  value: hour,
+                  child: Text(_formatHour(hour)),
+                ),
+              )
+              .toList(),
           onChanged: (next) {
             if (next != null) onChanged(next);
           },
