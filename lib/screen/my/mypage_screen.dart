@@ -78,13 +78,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
     final displayEmail = _email.isEmpty ? '' : _email;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F1F1),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
             Container(
               height: 44,
-              color: const Color(0xFFFBEFEF),
+              color: Colors.white,
               child: const Center(
                 child: Text(
                   'MY PAGE',

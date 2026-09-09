@@ -21,6 +21,7 @@ class _MyNotificationSettingScreenState
   Widget build(BuildContext context) {
     return BaseScaffold(
       title: '알림 설정',
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           Expanded(

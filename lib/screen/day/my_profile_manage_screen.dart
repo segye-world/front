@@ -90,6 +90,7 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
   Widget build(BuildContext context) {
     return BaseScaffold(
       title: '내 정보 관리',
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           Expanded(

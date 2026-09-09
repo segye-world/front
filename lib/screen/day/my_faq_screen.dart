@@ -41,6 +41,7 @@ class MyFaqScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BaseScaffold(
       title: 'FAQ',
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           Expanded(
