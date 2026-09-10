@@ -7,6 +7,7 @@ import '../../services/account_record_api.dart';
 import '../../services/category_api.dart';
 import '../../services/finance_settings_api.dart';
 import '../../services/payment_method_api.dart';
+import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
 class CashDetailScreen extends StatefulWidget {
@@ -93,6 +94,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: const AppTopBar(title: '소비 상세 페이지', showBack: false),
       body: SafeArea(
         child: Column(
           children: [
@@ -102,13 +104,6 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
                       children: [
-                        const Center(
-                          child: Text(
-                            '소비 상세 페이지',
-                            style: TextStyle(color: _lineNavy, fontSize: 15, fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        const SizedBox(height: 28),
                         Row(
                           children: [
                             Expanded(

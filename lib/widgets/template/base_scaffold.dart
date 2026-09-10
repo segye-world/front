@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_top_bar.dart';
+
 class BaseScaffold extends StatelessWidget {
   final Widget body;
   final String? title;
@@ -54,7 +56,7 @@ class BaseScaffold extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: appBar ?? (title != null ? AppBar(title: Text(title!)) : null),
+      appBar: appBar ?? (title != null ? AppTopBar(title: title!) : null),
       body: content,
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,
