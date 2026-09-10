@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
 import '../../services/account_record_api.dart';
+import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
 class CashRecordsScreen extends StatefulWidget {
@@ -13,7 +14,6 @@ class CashRecordsScreen extends StatefulWidget {
 
 class _CashRecordsScreenState extends State<CashRecordsScreen> {
   static const _primaryPink = Color(0xFFFFA4A9);
-  static const _softPink = Color(0xFFFFF1EF);
   static const _lineNavy = Color(0xFF53627D);
 
   late DateTime _visibleMonth;
@@ -64,10 +64,10 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: const AppTopBar(title: '전체 보기'),
       body: SafeArea(
         child: Column(
           children: [
-            _Header(onBack: () => Navigator.of(context).pop()),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: _primaryPink, strokeWidth: 2))
@@ -118,33 +118,6 @@ enum _RecordFilter {
   final String type;
 
   const _RecordFilter(this.label, this.type);
-}
-
-class _Header extends StatelessWidget {
-  final VoidCallback onBack;
-
-  const _Header({required this.onBack});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 44,
-      color: _CashRecordsScreenState._softPink,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: IconButton(
-              icon: const Icon(Icons.chevron_left, color: _CashRecordsScreenState._primaryPink),
-              onPressed: onBack,
-            ),
-          ),
-          const Text('전체 보기', style: TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: 14, fontWeight: FontWeight.w800)),
-        ],
-      ),
-    );
-  }
 }
 
 class _MonthSelector extends StatelessWidget {

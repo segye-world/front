@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../routes/routes.dart';
+import '../widgets/template/app_top_bar.dart';
 import '../widgets/template/bottom_nav_layout.dart';
 
 class MainScreen extends StatefulWidget {
@@ -65,10 +66,11 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
+      appBar: const AppTopBar(title: 'HOME', showBack: false),
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             Text(
               _userName,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),

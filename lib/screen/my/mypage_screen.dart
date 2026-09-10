@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
 import '../../services/token_storage.dart';
+import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
 class MyPageScreen extends StatefulWidget {
@@ -79,23 +80,10 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: const AppTopBar(title: 'MY PAGE', showBack: false),
       body: SafeArea(
         child: Column(
           children: [
-            Container(
-              height: 44,
-              color: Colors.white,
-              child: const Center(
-                child: Text(
-                  'MY PAGE',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF4F5E82),
-                  ),
-                ),
-              ),
-            ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),

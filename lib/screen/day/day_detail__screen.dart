@@ -10,6 +10,7 @@ import '../../services/finance_settings_api.dart';
 import '../../services/payment_method_api.dart';
 import '../../services/schedule_api.dart';
 import '../../services/todo_api.dart';
+import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
 class DayDetailScreen extends StatefulWidget {
@@ -659,19 +660,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _surfaceColor,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF1F1),
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          _formattedDate,
-          style: const TextStyle(
-            color: Color(0xFF667195),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        // 홈 화면이므로 뒤로가기 대신 날짜 선택용 캘린더를 엽니다.
-        automaticallyImplyLeading: false,
+      // 홈 화면이므로 뒤로가기 대신 날짜 선택용 캘린더를 엽니다.
+      appBar: AppTopBar(
+        title: _formattedDate,
+        showBack: false,
         leading: IconButton(
           tooltip: '날짜 선택',
           icon: const Icon(Icons.calendar_month, color: _accentColor),
