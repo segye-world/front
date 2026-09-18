@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
+import '../../theme/app_colors.dart';
 
 /// 하단 탭. 선언 순서가 곧 탭 인덱스입니다.
 enum AppNavItem { cash, home, mypage }
@@ -8,7 +9,7 @@ enum AppNavItem { cash, home, mypage }
 /// 앱 전체에서 쓰는 하단 내비게이션 바.
 /// 일정 상세 화면의 바를 기준으로 통일했습니다.
 class AppBottomNavBar extends StatelessWidget {
-  static const Color barColor = Color(0xFFF7A5A5);
+  static const Color barColor = AppColors.primaryPink;
 
   final AppNavItem currentItem;
 

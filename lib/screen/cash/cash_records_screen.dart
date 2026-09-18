@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
 import '../../services/account_record_api.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -13,8 +14,8 @@ class CashRecordsScreen extends StatefulWidget {
 }
 
 class _CashRecordsScreenState extends State<CashRecordsScreen> {
-  static const _primaryPink = Color(0xFFFFA4A9);
-  static const _lineNavy = Color(0xFF53627D);
+  static const _primaryPink = AppColors.primaryPink;
+  static const _lineNavy = AppColors.navyDark;
 
   late DateTime _visibleMonth;
   _RecordFilter _filter = _RecordFilter.expense;
@@ -88,7 +89,7 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
                         if (grouped.isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(top: 80),
-                            child: Center(child: Text('해당 월의 거래 내역이 없어요.', style: TextStyle(color: Colors.black45, fontSize: 12))),
+                            child: Center(child: Text('해당 월의 거래 내역이 없어요.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))),
                           )
                         else
                           ...grouped.entries.map(
@@ -131,11 +132,11 @@ class _MonthSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        InkWell(onTap: onPrevious, child: const Icon(Icons.chevron_left, size: 20, color: Colors.black87)),
+        InkWell(onTap: onPrevious, child: const Icon(Icons.chevron_left, size: 18, color: Colors.black87)),
         const SizedBox(width: 12),
         Text('${month.month}월', style: const TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w700)),
         const SizedBox(width: 12),
-        InkWell(onTap: onNext, child: const Icon(Icons.chevron_right, size: 20, color: Colors.black87)),
+        InkWell(onTap: onNext, child: const Icon(Icons.chevron_right, size: 18, color: Colors.black87)),
       ],
     );
   }
@@ -164,9 +165,9 @@ class _FilterTabs extends StatelessWidget {
             child: Text(
               filter.label,
               style: TextStyle(
-                color: isSelected ? _CashRecordsScreenState._lineNavy : Colors.black45,
+                color: isSelected ? _CashRecordsScreenState._lineNavy : AppColors.textSecondary,
                 fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ),
@@ -193,11 +194,11 @@ class _CategoryGroup extends StatelessWidget {
             children: [
               Icon(_categoryIcon(categoryName), size: 14, color: Colors.black),
               const SizedBox(width: 4),
-              Text(categoryName, style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w800)),
+              Text(categoryName, style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 10),
-          const Divider(height: 1, color: Color(0xFFE2E2E2)),
+          const Divider(height: 1, color: AppColors.cardBorder),
           const SizedBox(height: 10),
           ...records.map((record) => _RecordRow(record: record)),
         ],
@@ -229,9 +230,9 @@ class _RecordRow extends StatelessWidget {
           Text(
             amountText,
             style: TextStyle(
-              color: isIncome ? const Color(0xFF1B5E20) : Colors.red,
+              color: isIncome ? AppColors.income : AppColors.expense,
               fontSize: 12,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

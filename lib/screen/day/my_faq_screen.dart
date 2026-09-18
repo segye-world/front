@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -81,21 +83,21 @@ class _FaqTileState extends State<_FaqTile> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFEEE0E0)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.card),
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
-                  const Text('Q. ', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFF7A5A5))),
+                  const Text('Q. ', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryPink)),
                   Expanded(
                     child: Text(
                       widget.item.question,
@@ -116,7 +118,7 @@ class _FaqTileState extends State<_FaqTile> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: Text(
                 widget.item.answer,
-                style: const TextStyle(fontSize: 12, color: Colors.black54, height: 1.6),
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.6),
               ),
             ),
         ],

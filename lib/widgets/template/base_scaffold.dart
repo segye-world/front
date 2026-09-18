@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_colors.dart';
 import 'app_top_bar.dart';
 
 class BaseScaffold extends StatelessWidget {
@@ -19,7 +20,7 @@ class BaseScaffold extends StatelessWidget {
     required this.body,
     this.title,
     this.appBar,
-    this.backgroundColor = const Color(0xFFF5F5F5),
+    this.backgroundColor = AppColors.background,
     this.bottomNavigationBar,
     this.floatingActionButton,
     this.bodyPadding,

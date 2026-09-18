@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../api/auth_api.dart';
 import '../../api/api_error.dart';
 import '../../routes/routes.dart';
+import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/template/auth_layout.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -72,7 +73,7 @@ class _SignupScreenState extends State<SignupScreen> {
     return AuthLayout(
       leading: IconButton(
         onPressed: () => Navigator.of(context).maybePop(),
-        icon: const Icon(Icons.chevron_left, size: 28),
+        icon: const Icon(Icons.chevron_left, size: 24),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
       ),
@@ -105,7 +106,7 @@ class _SignupScreenState extends State<SignupScreen> {
             obscureText: true,
           ),
           const SizedBox(height: 28),
-          AuthPrimaryButton(
+          AppPrimaryButton(
             onPressed: _isLoading ? null : _submitSignup,
             label: _isLoading ? 'Loading...' : 'Create account',
           ),

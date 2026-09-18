@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_colors.dart';
+
 /// 앱 전체에서 공통으로 쓰는 상단바.
 ///
 /// 배경은 흰색, 높이는 모든 페이지에서 [kToolbarHeight]로 동일합니다.
 /// 하단에는 본문과 구분되도록 얇은 실선만 둡니다.
 class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   /// 제목 글자색. 기존 화면들에서 쓰던 네이비 톤으로 통일합니다.
-  static const Color _titleColor = Color(0xFF4F5E82);
+  static const Color _titleColor = AppColors.navyDark;
 
   /// 아이콘(뒤로가기 등) 색. 앱 포인트 컬러와 맞춥니다.
-  static const Color _iconColor = Color(0xFFF7A5A5);
+  static const Color _iconColor = AppColors.primaryPink;
 
-  static const Color _dividerColor = Color(0xFFEEEEEE);
+  static const Color _dividerColor = AppColors.cardBorder;
 
   final String title;
 

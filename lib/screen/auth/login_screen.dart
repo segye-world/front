@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
 import '../../api/api_error.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/template/auth_layout.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -61,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return AuthLayout(
       leading: IconButton(
         onPressed: () => Navigator.of(context).maybePop(),
-        icon: const Icon(Icons.chevron_left, size: 28),
+        icon: const Icon(Icons.chevron_left, size: 24),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
       ),
@@ -93,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
           const SizedBox(height: 36),
-          AuthPrimaryButton(
+          AppPrimaryButton(
             onPressed: _isLoading ? null : _submitLogin,
             label: _isLoading ? 'Loading...' : 'Login',
           ),
@@ -105,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: () {},
                 child: const Text(
                   'Find password',
-                  style: TextStyle(color: Color(0xFFB4BAC8)),
+                  style: TextStyle(color: AppColors.textTertiary),
                 ),
               ),
               const SizedBox(width: 16),
@@ -115,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
                 child: const Text(
                   'Sign up',
-                  style: TextStyle(color: Color(0xFFB4BAC8)),
+                  style: TextStyle(color: AppColors.textTertiary),
                 ),
               ),
             ],

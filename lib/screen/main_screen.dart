@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../routes/routes.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
+import '../theme/app_text_styles.dart';
 import '../widgets/template/app_top_bar.dart';
 import '../widgets/template/bottom_nav_layout.dart';
 
@@ -12,7 +15,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   static const _userName = '세계';
-  static const _primaryPink = Color(0xFFF7A5A5);
+  static const _primaryPink = AppColors.primaryPink;
   static final DateTime _initialDate = DateTime(2025, 9, 9);
 
   late DateTime _selectedDate = _initialDate;
@@ -65,16 +68,13 @@ class _MainScreenState extends State<MainScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.background,
       appBar: const AppTopBar(title: 'HOME', showBack: false),
       body: SafeArea(
         child: Column(
           children: [
             const SizedBox(height: 16),
-            Text(
-              _userName,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-            ),
+            Text(_userName, style: AppTextStyles.title),
             const SizedBox(height: 12),
             Expanded(
               child: Container(
@@ -85,14 +85,8 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  borderRadius: BorderRadius.circular(AppRadius.large),
+                  border: Border.all(color: AppColors.cardBorder),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,7 +312,7 @@ class _AccountRecordTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F8F8),
+        color: AppColors.inputFill,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -347,8 +341,8 @@ class _AccountRecordTile extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: record.amount >= 0
-                  ? const Color(0xFF1B5E20)
-                  : const Color(0xFFB71C1C),
+                  ? AppColors.income
+                  : AppColors.expense,
             ),
           ),
         ],
@@ -367,7 +361,7 @@ class _TodoItemTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFEFEF),
+        color: AppColors.primaryPink.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
