@@ -35,7 +35,6 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   List<AccountRecordModel> _recentRecords = [];
   Map<String, int> _expenseTotals = {};
   int _monthIncome = 0;
-  int _todayExpense = 0;
   int _monthExpense = 0;
   bool _isLoading = true;
   List<CategoryModel> _categories = [];
@@ -57,24 +56,19 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
       final firstOfMonth = _dateStr(DateTime(now.year, now.month, 1));
 
       final results = await Future.wait([
-        AccountRecordApi.fetchByDate(today),
         AccountRecordApi.fetchByDateRange(firstOfMonth, today),
         CategoryApi.fetchAll(),
         PaymentMethodApi.fetchAll(),
         BudgetApi.fetch(year: now.year, month: now.month),
       ]);
 
-      final todayRecords = results[0] as List<AccountRecordModel>;
-      final monthRecords = results[1] as List<AccountRecordModel>;
-      final categories = results[2] as List<CategoryModel>;
-      final paymentMethods = results[3] as List<PaymentMethodModel>;
-      final budget = results[4] as BudgetModel?;
+      final monthRecords = results[0] as List<AccountRecordModel>;
+      final categories = results[1] as List<CategoryModel>;
+      final paymentMethods = results[2] as List<PaymentMethodModel>;
+      final budget = results[3] as BudgetModel?;
 
       final monthIncome = monthRecords
           .where((r) => r.categoryType == 'INCOME')
-          .fold(0, (sum, r) => sum + r.amount);
-      final todayExpense = todayRecords
-          .where((r) => r.categoryType == 'EXPENSE')
           .fold(0, (sum, r) => sum + r.amount);
       final monthExpense = monthRecords
           .where((r) => r.categoryType == 'EXPENSE')
@@ -90,7 +84,6 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         _recentRecords = monthRecords.reversed.take(4).toList();
         _expenseTotals = expenseTotals;
         _monthIncome = monthIncome;
-        _todayExpense = todayExpense;
         _monthExpense = monthExpense;
         _categories = categories;
         _paymentMethods = paymentMethods;
@@ -145,7 +138,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: _TodaySummaryCard(
+                              child: _MonthlySummaryCard(
                                 title: '이번 달 총 수입',
                                 amount: _monthIncome,
                                 accentColor: _green,
@@ -154,9 +147,9 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
                             ),
                             const SizedBox(width: 18),
                             Expanded(
-                              child: _TodaySummaryCard(
-                                title: '오늘 총 지출',
-                                amount: _todayExpense,
+                              child: _MonthlySummaryCard(
+                                title: '이번 달 총 지출',
+                                amount: _monthExpense,
                                 accentColor: _red,
                                 chartIcon: Icons.trending_down,
                               ),
@@ -296,13 +289,13 @@ class _TopActionButton extends StatelessWidget {
   }
 }
 
-class _TodaySummaryCard extends StatelessWidget {
+class _MonthlySummaryCard extends StatelessWidget {
   final String title;
   final int amount;
   final Color accentColor;
   final IconData chartIcon;
 
-  const _TodaySummaryCard({
+  const _MonthlySummaryCard({
     required this.title,
     required this.amount,
     required this.accentColor,
@@ -629,21 +622,10 @@ class _BudgetGoalSection extends StatelessWidget {
           Builder(builder: (context) {
             final remaining = limit - monthExpense;
             final isOverBudget = remaining < 0;
-            final ratio = limit > 0 ? (monthExpense / limit).clamp(0, 1).toDouble() : 0.0;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: ratio,
-                    minHeight: 8,
-                    backgroundColor: AppColors.inputFill,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      isOverBudget ? _CashDetailScreenState._red : _CashDetailScreenState._primaryPink,
-                    ),
-                  ),
-                ),
+                _BudgetProgressBar(spent: monthExpense, limit: limit),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -667,6 +649,46 @@ class _BudgetGoalSection extends StatelessWidget {
           }),
         ],
       ],
+    );
+  }
+}
+
+/// 목표 대비 지출 막대.
+///
+/// 목표 이내일 때는 지출한 만큼만 핑크로 채우고 나머지는 빈 트랙으로 둡니다.
+/// 목표를 넘으면 "얼마나 넘었는지"가 그대로 드러나야 하므로, 막대 전체 폭을
+/// 지출액 기준으로 다시 잡고 목표까지는 회색, 넘은 만큼은 빨간색으로 이어 붙입니다.
+class _BudgetProgressBar extends StatelessWidget {
+  final int spent;
+  final int limit;
+
+  const _BudgetProgressBar({required this.spent, required this.limit});
+
+  @override
+  Widget build(BuildContext context) {
+    final isOverBudget = spent > limit;
+
+    final segments = <Widget>[];
+    if (isOverBudget) {
+      segments.add(Expanded(flex: limit, child: Container(color: Colors.grey.shade400)));
+      segments.add(Expanded(flex: spent - limit, child: Container(color: _CashDetailScreenState._red)));
+    } else {
+      if (spent > 0) {
+        segments.add(Expanded(flex: spent, child: Container(color: _CashDetailScreenState._primaryPink)));
+      }
+      final remaining = limit - spent;
+      if (remaining > 0) {
+        segments.add(Expanded(flex: remaining, child: const SizedBox.shrink()));
+      }
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        height: 8,
+        color: AppColors.inputFill,
+        child: Row(children: segments),
+      ),
     );
   }
 }
