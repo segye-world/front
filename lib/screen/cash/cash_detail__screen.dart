@@ -4,13 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
 import '../../models/budget_model.dart';
-import '../../models/payment_method_model.dart';
 import '../../routes/routes.dart';
 import '../../services/account_record_api.dart';
 import '../../services/budget_api.dart';
 import '../../services/category_api.dart';
 import '../../services/finance_settings_api.dart';
-import '../../services/payment_method_api.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
@@ -38,7 +36,6 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   int _monthExpense = 0;
   bool _isLoading = true;
   List<CategoryModel> _categories = [];
-  List<PaymentMethodModel> _paymentMethods = [];
   BudgetModel? _budget;
 
   @override
@@ -58,14 +55,12 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
       final results = await Future.wait([
         AccountRecordApi.fetchByDateRange(firstOfMonth, today),
         CategoryApi.fetchAll(),
-        PaymentMethodApi.fetchAll(),
         BudgetApi.fetch(year: now.year, month: now.month),
       ]);
 
       final monthRecords = results[0] as List<AccountRecordModel>;
       final categories = results[1] as List<CategoryModel>;
-      final paymentMethods = results[2] as List<PaymentMethodModel>;
-      final budget = results[3] as BudgetModel?;
+      final budget = results[2] as BudgetModel?;
 
       final monthIncome = monthRecords
           .where((r) => r.categoryType == 'INCOME')
@@ -86,7 +81,6 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         _monthIncome = monthIncome;
         _monthExpense = monthExpense;
         _categories = categories;
-        _paymentMethods = paymentMethods;
         _budget = budget;
       });
     } catch (_) {
@@ -218,9 +212,9 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         _categories.where((category) => category.type == 'EXPENSE').toList();
     final incomeCategories =
         _categories.where((category) => category.type == 'INCOME').toList();
-    if (expenseCategories.isEmpty || incomeCategories.isEmpty || _paymentMethods.isEmpty) {
+    if (expenseCategories.isEmpty || incomeCategories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('카테고리와 지출 수단을 먼저 추가해 주세요.')),
+        const SnackBar(content: Text('카테고리와 수입원을 먼저 추가해 주세요.')),
       );
       return;
     }
@@ -229,13 +223,12 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
       builder: (_) => _AddTransactionDialog(
         expenseCategories: expenseCategories,
         incomeCategories: incomeCategories,
-        paymentMethods: _paymentMethods,
-        onSave: (amount, category, paymentMethod, isExpense, transactionTime) async {
+        onSave: (amount, category, sourceCategory, isExpense, transactionTime) async {
           try {
             await AccountRecordApi.create(
               amount: amount,
               categoryId: category.id,
-              paymentMethodId: paymentMethod?.id,
+              sourceCategoryId: sourceCategory?.id,
               transactionTime: transactionTime,
             );
             await _loadData();
@@ -419,24 +412,30 @@ class _CategoryPieChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 110,
-      height: 110,
+      width: 72,
+      height: 72,
       child: CustomPaint(
         painter: _PieChartPainter(
           values: entries.map((e) => e.value.toDouble()).toList(),
           colors: colors,
         ),
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('합계', style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
-              Text(
-                _formatWon(total),
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
-                textAlign: TextAlign.center,
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('합계', style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                  Text(
+                    _formatWon(total),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -751,12 +750,12 @@ class _BudgetGoalDialogState extends State<_BudgetGoalDialog> {
 
 class _AddTransactionDialog extends StatefulWidget {
   final List<CategoryModel> expenseCategories;
+  // 수입원(=지출 수단) 목록. 수입 추가에서는 카테고리로, 지출 추가에서는 지출 수단으로 쓰인다.
   final List<CategoryModel> incomeCategories;
-  final List<PaymentMethodModel> paymentMethods;
   final Future<void> Function(
     int amount,
     CategoryModel category,
-    PaymentMethodModel? paymentMethod,
+    CategoryModel? sourceCategory,
     bool isExpense,
     DateTime transactionTime,
   ) onSave;
@@ -764,7 +763,6 @@ class _AddTransactionDialog extends StatefulWidget {
   const _AddTransactionDialog({
     required this.expenseCategories,
     required this.incomeCategories,
-    required this.paymentMethods,
     required this.onSave,
   });
 
@@ -776,7 +774,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   bool _isExpense = true;
   final _amountCtrl = TextEditingController();
   late CategoryModel _selectedCategory;
-  PaymentMethodModel? _selectedPaymentMethod;
+  CategoryModel? _selectedSourceCategory;
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
 
@@ -787,7 +785,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   void initState() {
     super.initState();
     _selectedCategory = widget.expenseCategories.first;
-    _selectedPaymentMethod = widget.paymentMethods.firstOrNull;
+    _selectedSourceCategory = widget.incomeCategories.firstOrNull;
   }
 
   @override
@@ -803,7 +801,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
       _isExpense = isExpense;
       _selectedCategory = _activeCategories.first;
       if (isExpense) {
-        _selectedPaymentMethod ??= widget.paymentMethods.firstOrNull;
+        _selectedSourceCategory ??= widget.incomeCategories.firstOrNull;
       }
     });
   }
@@ -880,15 +878,15 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                 labelOf: (category) => category.name,
                 onChanged: (category) => setState(() => _selectedCategory = category),
               ),
-              if (_isExpense && _selectedPaymentMethod != null) ...[
+              if (_isExpense && _selectedSourceCategory != null) ...[
                 const SizedBox(height: 18),
                 const _DialogLabel('지출 수단'),
-                _FormDropdown<PaymentMethodModel>(
+                _FormDropdown<CategoryModel>(
                   icon: Icons.account_balance_wallet_outlined,
-                  value: _selectedPaymentMethod!,
-                  items: widget.paymentMethods,
-                  labelOf: (method) => method.name,
-                  onChanged: (method) => setState(() => _selectedPaymentMethod = method),
+                  value: _selectedSourceCategory!,
+                  items: widget.incomeCategories,
+                  labelOf: (source) => source.name,
+                  onChanged: (source) => setState(() => _selectedSourceCategory = source),
                 ),
               ],
               const SizedBox(height: 22),
@@ -910,7 +908,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                   await widget.onSave(
                     amount,
                     _selectedCategory,
-                    _isExpense ? _selectedPaymentMethod : null,
+                    _isExpense ? _selectedSourceCategory : null,
                     _isExpense,
                     transactionTime,
                   );

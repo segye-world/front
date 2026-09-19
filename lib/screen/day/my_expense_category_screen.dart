@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
-import '../../models/payment_method_model.dart';
 import '../../services/category_api.dart';
 import '../../services/finance_settings_api.dart';
-import '../../services/payment_method_api.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
@@ -20,7 +18,6 @@ class MyExpenseCategoryScreen extends StatefulWidget {
 
 class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
   List<CategoryModel> _categories = [];
-  List<PaymentMethodModel> _paymentMethods = [];
   bool _isLoading = true;
 
   @override
@@ -33,14 +30,9 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
     setState(() => _isLoading = true);
     try {
       await FinanceSettingsApi.ensureDefaults();
-      final results = await Future.wait([CategoryApi.fetchAll(), PaymentMethodApi.fetchAll()]);
-      final categories = results[0] as List<CategoryModel>;
-      final paymentMethods = results[1] as List<PaymentMethodModel>;
+      final categories = await CategoryApi.fetchAll();
       if (!mounted) return;
-      setState(() {
-        _categories = categories;
-        _paymentMethods = paymentMethods;
-      });
+      setState(() => _categories = categories);
     } catch (_) {
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -60,42 +52,6 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('카테고리 추가에 실패했습니다.')),
-        );
-      }
-    }
-  }
-
-  Future<void> _showAddPaymentMethodDialog() async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (_) => const _NameFormDialog(title: '지출 수단 추가', hintText: '예: 신용카드, 월급 통장'),
-    );
-    if (result == null) return;
-    if (_paymentMethods.any((method) => method.name == result) ||
-        _categories.any((category) => category.name == result && category.type == 'INCOME')) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('같은 이름의 지출 수단 또는 수입원이 이미 있습니다.')),
-        );
-      }
-      return;
-    }
-    PaymentMethodModel? paymentMethod;
-    try {
-      // 지출 수단은 수입이 들어오는 곳이기도 하므로 같은 이름의 수입원을 함께 만듭니다.
-      paymentMethod = await PaymentMethodApi.create(name: result);
-      await CategoryApi.create(name: result, type: 'INCOME');
-      await _loadCategories();
-    } catch (_) {
-      // 두 API 호출은 서버 트랜잭션이 아니므로, 두 번째 호출 실패 시 첫 번째 생성값을 되돌립니다.
-      if (paymentMethod != null) {
-        try {
-          await PaymentMethodApi.delete(id: paymentMethod.id);
-        } catch (_) {}
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('지출 수단과 연결된 수입원 추가에 실패했습니다.')),
         );
       }
     }
@@ -153,10 +109,9 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
   Widget build(BuildContext context) {
     final expenseList = _categories.where((c) => c.type == 'EXPENSE').toList();
     final incomeList = _categories.where((c) => c.type == 'INCOME').toList();
-    final paymentMethodList = _paymentMethods;
 
     return BaseScaffold(
-      title: '지출 수단 및 카테고리',
+      title: '지출 카테고리 및 수입원',
       backgroundColor: Colors.white,
       body: Column(
         children: [
@@ -170,9 +125,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
                     children: [
                       _buildSection('지출 카테고리', expenseList, 'EXPENSE'),
                       const SizedBox(height: 20),
-                      _buildPaymentMethodSection(paymentMethodList),
-                      const SizedBox(height: 20),
-                      _buildSection('수입 카테고리', incomeList, 'INCOME'),
+                      _buildSection('수입원', incomeList, 'INCOME'),
                     ],
                   ),
           ),
@@ -218,22 +171,6 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
       ],
     );
   }
-
-  Widget _buildPaymentMethodSection(List<PaymentMethodModel> methods) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text('지출 수단', style: AppTextStyles.subtitle),
-        TextButton.icon(onPressed: _showAddPaymentMethodDialog, icon: const Icon(Icons.add, size: 16), label: const Text('추가', style: AppTextStyles.label), style: TextButton.styleFrom(foregroundColor: AppColors.primaryPink, padding: EdgeInsets.zero)),
-      ]),
-      const SizedBox(height: 8),
-      if (methods.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('지출 수단이 없어요.', style: AppTextStyles.caption))
-      else ...methods.map((method) => Container(
-        margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.card), border: Border.all(color: AppColors.cardBorder)),
-        child: Row(children: [const Icon(Icons.account_balance_wallet_outlined, size: 20, color: AppColors.navyDark), const SizedBox(width: 10), Expanded(child: Text(method.name, style: const TextStyle(fontWeight: FontWeight.w600))), const Text('연결된 수입원', style: AppTextStyles.caption)]),
-      )),
-    ]);
-  }
 }
 
 class _CategoryRow extends StatelessWidget {
@@ -274,7 +211,7 @@ class _CategoryRow extends StatelessWidget {
                 Text(category.name,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 Text(
-                  category.type == 'INCOME' ? '수입' : '지출',
+                  category.type == 'INCOME' ? '수입원' : '지출',
                   style: AppTextStyles.caption,
                 ),
               ],
@@ -374,7 +311,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _TypeChip(
-                    label: '수입',
+                    label: '수입원',
                     isActive: _type == 'INCOME',
                     activeColor: AppColors.incomeAccent,
                     onTap: () => setState(() => _type = 'INCOME'),
@@ -415,29 +352,6 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
       ),
     );
   }
-}
-
-class _NameFormDialog extends StatefulWidget {
-  final String title;
-  final String hintText;
-  const _NameFormDialog({required this.title, required this.hintText});
-  @override
-  State<_NameFormDialog> createState() => _NameFormDialogState();
-}
-
-class _NameFormDialogState extends State<_NameFormDialog> {
-  final _controller = TextEditingController();
-  @override
-  void dispose() { _controller.dispose(); super.dispose(); }
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
-    content: TextField(controller: _controller, autofocus: true, decoration: InputDecoration(hintText: widget.hintText)),
-    actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-      FilledButton(onPressed: () { final name = _controller.text.trim(); if (name.isNotEmpty) Navigator.pop(context, name); }, child: const Text('추가')),
-    ],
-  );
 }
 
 class _TypeChip extends StatelessWidget {
