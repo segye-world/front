@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/account_record_model.dart';
 import '../../services/account_record_api.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_text_styles.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -55,6 +56,10 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
     final grouped = <String, List<AccountRecordModel>>{};
     for (final record in records) {
       grouped.putIfAbsent(record.categoryName, () => []).add(record);
+    }
+    for (final group in grouped.values) {
+      // 최근 거래가 위로 오도록 날짜·시간 역순 정렬합니다.
+      group.sort((a, b) => b.transactionTime.compareTo(a.transactionTime));
     }
     return grouped;
   }
@@ -220,11 +225,19 @@ class _RecordRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Text(
-              record.categoryName,
-              style: const TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  record.categoryName,
+                  style: const TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(_formatDateTime(record.transactionTime), style: AppTextStyles.caption),
+              ],
             ),
           ),
           Text(
@@ -274,6 +287,12 @@ IconData _categoryIcon(String name) {
     return Icons.trending_up;
   }
   return Icons.receipt_outlined;
+}
+
+String _formatDateTime(DateTime dateTime) {
+  final hour = dateTime.hour.toString().padLeft(2, '0');
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  return '${dateTime.month}/${dateTime.day} $hour:$minute';
 }
 
 String _formatNumber(int value) {

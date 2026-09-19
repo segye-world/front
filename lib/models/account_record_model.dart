@@ -25,6 +25,7 @@ class AccountRecordModel {
   final String categoryName;
   final String categoryType; // 'EXPENSE' or 'INCOME'
   final int amount;          // 항상 양수 — categoryType으로 수입/지출 구분
+  final DateTime transactionTime;
   final int? scheduleId;
   final int? paymentMethodId;
   final String? paymentMethodName;
@@ -35,6 +36,7 @@ class AccountRecordModel {
     required this.categoryName,
     required this.categoryType,
     required this.amount,
+    required this.transactionTime,
     this.scheduleId,
     this.paymentMethodId,
     this.paymentMethodName,
@@ -48,6 +50,9 @@ class AccountRecordModel {
         categoryType: json['categoryType'] as String? ?? 'EXPENSE',
         // amount는 Long → int 캐스팅 (Dart int는 64bit이므로 안전)
         amount: (json['amount'] as num).toInt(),
+        transactionTime: json['transactionTime'] != null
+            ? DateTime.parse(json['transactionTime'] as String)
+            : DateTime.now(),
         scheduleId: json['scheduleId'] as int?,
         paymentMethodId: (json['paymentMethodId'] as num?)?.toInt(),
         paymentMethodName: json['paymentMethodName'] as String?,
