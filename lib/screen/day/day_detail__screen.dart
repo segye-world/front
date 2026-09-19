@@ -513,11 +513,17 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           category.type == (_financeType == _FinanceType.expense ? 'EXPENSE' : 'INCOME'),
     ).firstOrNull;
 
+    // 지출 수단(=지출이 빠져나가는 수입원)은 지출에만 필요합니다. 수입은 수입원 카테고리만으로 기록됩니다.
+    final requiresPaymentMethod = _financeType == _FinanceType.expense;
     final selectedPaymentMethod = _paymentMethods.where((method) => method.id == _selectedPaymentMethodId).firstOrNull;
 
-    if (amount != null && amount > 0 && (selectedCategory == null || selectedPaymentMethod == null)) {
+    if (amount != null &&
+        amount > 0 &&
+        (selectedCategory == null || (requiresPaymentMethod && selectedPaymentMethod == null))) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('수입·지출 카테고리와 지출 수단을 불러온 뒤 다시 시도해 주세요.')),
+        SnackBar(content: Text(requiresPaymentMethod
+            ? '지출 카테고리와 지출 수단을 불러온 뒤 다시 시도해 주세요.'
+            : '수입원 카테고리를 불러온 뒤 다시 시도해 주세요.')),
       );
       return;
     }
@@ -532,11 +538,14 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       );
 
       AccountRecordModel? createdRecord;
-      if (amount != null && amount > 0 && selectedCategory != null && selectedPaymentMethod != null) {
+      if (amount != null &&
+          amount > 0 &&
+          selectedCategory != null &&
+          (!requiresPaymentMethod || selectedPaymentMethod != null)) {
         createdRecord = await AccountRecordApi.create(
           amount: amount,
           categoryId: selectedCategory.id,
-          paymentMethodId: selectedPaymentMethod.id,
+          paymentMethodId: requiresPaymentMethod ? selectedPaymentMethod!.id : null,
           scheduleId: schedule.id,
           transactionTime: DateTime(
             _selectedDate.year,
@@ -2042,7 +2051,7 @@ class _ScheduleAddPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const _FieldLabel('카테고리'),
+        _FieldLabel(financeType == _FinanceType.expense ? '지출 카테고리' : '수입원 카테고리'),
         ...activeCategories.map(
           (category) => RadioListTile<String>(
             dense: true,
@@ -2055,16 +2064,19 @@ class _ScheduleAddPanel extends StatelessWidget {
             title: Text(category, style: const TextStyle(fontSize: 13)),
           ),
         ),
-        const SizedBox(height: 12),
-        const _FieldLabel('지출 수단'),
-        DropdownButtonFormField<int>(
-          value: selectedPaymentMethodId,
-          decoration: const InputDecoration(border: UnderlineInputBorder()),
-          items: paymentMethods
-              .map((method) => DropdownMenuItem(value: method.id, child: Text(method.name)))
-              .toList(),
-          onChanged: onPaymentMethodChanged,
-        ),
+        // 지출 수단(=수입원)은 돈이 빠져나가는 곳을 고르는 항목이라 지출에만 필요합니다.
+        if (financeType == _FinanceType.expense) ...[
+          const SizedBox(height: 12),
+          const _FieldLabel('지출 수단'),
+          DropdownButtonFormField<int>(
+            value: selectedPaymentMethodId,
+            decoration: const InputDecoration(border: UnderlineInputBorder()),
+            items: paymentMethods
+                .map((method) => DropdownMenuItem(value: method.id, child: Text(method.name)))
+                .toList(),
+            onChanged: onPaymentMethodChanged,
+          ),
+        ],
         const _FieldLabel('메모'),
         TextField(
           controller: memoController,

@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
+import '../../models/budget_model.dart';
 import '../../models/payment_method_model.dart';
 import '../../routes/routes.dart';
 import '../../services/account_record_api.dart';
+import '../../services/budget_api.dart';
 import '../../services/category_api.dart';
 import '../../services/finance_settings_api.dart';
 import '../../services/payment_method_api.dart';
@@ -32,11 +34,13 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
 
   List<AccountRecordModel> _recentRecords = [];
   Map<String, int> _expenseTotals = {};
-  int _todayIncome = 0;
+  int _monthIncome = 0;
   int _todayExpense = 0;
+  int _monthExpense = 0;
   bool _isLoading = true;
   List<CategoryModel> _categories = [];
   List<PaymentMethodModel> _paymentMethods = [];
+  BudgetModel? _budget;
 
   @override
   void initState() {
@@ -57,17 +61,22 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         AccountRecordApi.fetchByDateRange(firstOfMonth, today),
         CategoryApi.fetchAll(),
         PaymentMethodApi.fetchAll(),
+        BudgetApi.fetch(year: now.year, month: now.month),
       ]);
 
       final todayRecords = results[0] as List<AccountRecordModel>;
       final monthRecords = results[1] as List<AccountRecordModel>;
       final categories = results[2] as List<CategoryModel>;
       final paymentMethods = results[3] as List<PaymentMethodModel>;
+      final budget = results[4] as BudgetModel?;
 
-      final todayIncome = todayRecords
+      final monthIncome = monthRecords
           .where((r) => r.categoryType == 'INCOME')
           .fold(0, (sum, r) => sum + r.amount);
       final todayExpense = todayRecords
+          .where((r) => r.categoryType == 'EXPENSE')
+          .fold(0, (sum, r) => sum + r.amount);
+      final monthExpense = monthRecords
           .where((r) => r.categoryType == 'EXPENSE')
           .fold(0, (sum, r) => sum + r.amount);
 
@@ -80,10 +89,12 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
       setState(() {
         _recentRecords = monthRecords.reversed.take(4).toList();
         _expenseTotals = expenseTotals;
-        _todayIncome = todayIncome;
+        _monthIncome = monthIncome;
         _todayExpense = todayExpense;
+        _monthExpense = monthExpense;
         _categories = categories;
         _paymentMethods = paymentMethods;
+        _budget = budget;
       });
     } catch (_) {
       // show empty state on error
@@ -135,8 +146,8 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
                           children: [
                             Expanded(
                               child: _TodaySummaryCard(
-                                title: '오늘 총 수입',
-                                amount: _todayIncome,
+                                title: '이번 달 총 수입',
+                                amount: _monthIncome,
                                 accentColor: _green,
                                 chartIcon: Icons.show_chart,
                               ),
@@ -151,6 +162,14 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 18),
+                        _OutlinedSection(
+                          child: _BudgetGoalSection(
+                            budget: _budget,
+                            monthExpense: _monthExpense,
+                            onEdit: _showEditBudgetDialog,
+                          ),
                         ),
                         const SizedBox(height: 18),
                         _OutlinedSection(
@@ -181,6 +200,26 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
     Navigator.of(context).pushNamed(Routes.cashRecords).then((_) => _loadData());
   }
 
+  Future<void> _showEditBudgetDialog() async {
+    final now = DateTime.now();
+    final result = await showDialog<int>(
+      context: context,
+      builder: (_) => _BudgetGoalDialog(initialAmount: _budget?.limitAmount),
+    );
+    if (result == null) return;
+    try {
+      final saved = await BudgetApi.upsert(year: now.year, month: now.month, limitAmount: result);
+      if (!mounted) return;
+      setState(() => _budget = saved);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('지출 목표 저장에 실패했습니다.')),
+        );
+      }
+    }
+  }
+
   void _showAddTransactionDialog() {
     final expenseCategories =
         _categories.where((category) => category.type == 'EXPENSE').toList();
@@ -203,7 +242,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
             await AccountRecordApi.create(
               amount: amount,
               categoryId: category.id,
-              paymentMethodId: paymentMethod.id,
+              paymentMethodId: paymentMethod?.id,
               transactionTime: transactionTime,
             );
             await _loadData();
@@ -546,6 +585,146 @@ class _RecentRecordTile extends StatelessWidget {
   }
 }
 
+class _BudgetGoalSection extends StatelessWidget {
+  final BudgetModel? budget;
+  final int monthExpense;
+  final VoidCallback onEdit;
+
+  const _BudgetGoalSection({
+    required this.budget,
+    required this.monthExpense,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final limit = budget?.limitAmount;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.flag_outlined, size: 16, color: _CashDetailScreenState._lineNavy),
+                SizedBox(width: 6),
+                Text('이번 달 지출 목표', style: TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            InkWell(
+              onTap: onEdit,
+              child: Text(limit == null ? '목표 설정' : '수정', style: AppTextStyles.label),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (limit == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: Text('이번 달 지출 목표를 설정해 보세요.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          )
+        else ...[
+          Builder(builder: (context) {
+            final remaining = limit - monthExpense;
+            final isOverBudget = remaining < 0;
+            final ratio = limit > 0 ? (monthExpense / limit).clamp(0, 1).toDouble() : 0.0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: ratio,
+                    minHeight: 8,
+                    backgroundColor: AppColors.inputFill,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isOverBudget ? _CashDetailScreenState._red : _CashDetailScreenState._primaryPink,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${_formatWon(monthExpense)} / ${_formatWon(limit)}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
+                    ),
+                    Text(
+                      isOverBudget ? '${_formatWon(-remaining)} 초과' : '${_formatWon(remaining)} 남음',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isOverBudget ? _CashDetailScreenState._red : _CashDetailScreenState._green,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }),
+        ],
+      ],
+    );
+  }
+}
+
+class _BudgetGoalDialog extends StatefulWidget {
+  final int? initialAmount;
+
+  const _BudgetGoalDialog({this.initialAmount});
+
+  @override
+  State<_BudgetGoalDialog> createState() => _BudgetGoalDialogState();
+}
+
+class _BudgetGoalDialogState extends State<_BudgetGoalDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialAmount?.toString() ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('이번 달 지출 목표'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(suffixText: '원', hintText: '목표 금액을 입력하세요'),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        FilledButton(
+          onPressed: () {
+            final amount = int.tryParse(_controller.text.trim());
+            if (amount == null || amount <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('올바른 금액을 입력해 주세요.')),
+              );
+              return;
+            }
+            Navigator.pop(context, amount);
+          },
+          child: const Text('저장'),
+        ),
+      ],
+    );
+  }
+}
+
 // ─── Add Transaction Dialog ──────────────────────────────────────────────────
 
 class _AddTransactionDialog extends StatefulWidget {
@@ -555,7 +734,7 @@ class _AddTransactionDialog extends StatefulWidget {
   final Future<void> Function(
     int amount,
     CategoryModel category,
-    PaymentMethodModel paymentMethod,
+    PaymentMethodModel? paymentMethod,
     bool isExpense,
     DateTime transactionTime,
   ) onSave;
@@ -575,7 +754,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   bool _isExpense = true;
   final _amountCtrl = TextEditingController();
   late CategoryModel _selectedCategory;
-  late PaymentMethodModel _selectedPaymentMethod;
+  PaymentMethodModel? _selectedPaymentMethod;
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
 
@@ -586,7 +765,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   void initState() {
     super.initState();
     _selectedCategory = widget.expenseCategories.first;
-    _selectedPaymentMethod = widget.paymentMethods.first;
+    _selectedPaymentMethod = widget.paymentMethods.firstOrNull;
   }
 
   @override
@@ -595,15 +774,15 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
     super.dispose();
   }
 
+  // 지출 수단(=돈이 빠져나가는 수입원)은 지출에만 필요합니다.
+  // 수입은 수입원 카테고리를 고르는 것만으로 기록되므로 지출 수단을 요구하지 않습니다.
   void _changeType(bool isExpense) {
     setState(() {
       _isExpense = isExpense;
       _selectedCategory = _activeCategories.first;
-      // 수입 카테고리와 지출 수단의 이름을 맞춰, 같은 자금 흐름으로 기록합니다.
-      final linkedMethod = widget.paymentMethods.where(
-        (method) => method.name == _selectedCategory.name,
-      ).firstOrNull;
-      if (linkedMethod != null) _selectedPaymentMethod = linkedMethod;
+      if (isExpense) {
+        _selectedPaymentMethod ??= widget.paymentMethods.firstOrNull;
+      }
     });
   }
 
@@ -671,7 +850,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                 ),
               ]),
               const SizedBox(height: 18),
-              const _DialogLabel('카테고리'),
+              _DialogLabel(_isExpense ? '지출 카테고리' : '수입원 카테고리'),
               _FormDropdown<CategoryModel>(
                 icon: Icons.sell_outlined,
                 value: _selectedCategory,
@@ -679,15 +858,17 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                 labelOf: (category) => category.name,
                 onChanged: (category) => setState(() => _selectedCategory = category),
               ),
-              const SizedBox(height: 18),
-              const _DialogLabel('지출 수단'),
-              _FormDropdown<PaymentMethodModel>(
-                icon: Icons.account_balance_wallet_outlined,
-                value: _selectedPaymentMethod,
-                items: widget.paymentMethods,
-                labelOf: (method) => method.name,
-                onChanged: (method) => setState(() => _selectedPaymentMethod = method),
-              ),
+              if (_isExpense && _selectedPaymentMethod != null) ...[
+                const SizedBox(height: 18),
+                const _DialogLabel('지출 수단'),
+                _FormDropdown<PaymentMethodModel>(
+                  icon: Icons.account_balance_wallet_outlined,
+                  value: _selectedPaymentMethod!,
+                  items: widget.paymentMethods,
+                  labelOf: (method) => method.name,
+                  onChanged: (method) => setState(() => _selectedPaymentMethod = method),
+                ),
+              ],
               const SizedBox(height: 22),
               SizedBox(width: double.infinity, height: 48, child: FilledButton(
                 onPressed: () async {
@@ -704,7 +885,13 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                     _selectedTime.minute,
                   );
                   Navigator.pop(context);
-                  await widget.onSave(amount, _selectedCategory, _selectedPaymentMethod, _isExpense, transactionTime);
+                  await widget.onSave(
+                    amount,
+                    _selectedCategory,
+                    _isExpense ? _selectedPaymentMethod : null,
+                    _isExpense,
+                    transactionTime,
+                  );
                 },
                 style: FilledButton.styleFrom(backgroundColor: activeColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button))),
                 child: const Text('기록 저장하기'),

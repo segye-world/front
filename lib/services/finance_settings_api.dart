@@ -6,7 +6,7 @@ import 'payment_method_api.dart';
 /// 회원별 금융 설정의 필수 기본값을 한 번 보장합니다.
 /// 서버는 인증 토큰의 회원으로 저장하므로 기본값도 사용자별로 생성됩니다.
 class FinanceSettingsApi {
-  static const _incomeDefaults = ['월급', '현금'];
+  static const _incomeDefaults = ['월급', '현금', '부수입'];
   static const _paymentMethodDefaults = ['월급', '현금'];
 
   static Future<void> ensureDefaults() async {
