@@ -538,7 +538,11 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           categoryId: selectedCategory.id,
           paymentMethodId: selectedPaymentMethod.id,
           scheduleId: schedule.id,
-          date: _dateString,
+          transactionTime: DateTime(
+            _selectedDate.year,
+            _selectedDate.month,
+            _selectedDate.day,
+          ),
         );
       }
 

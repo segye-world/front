@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
@@ -196,13 +198,13 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         expenseCategories: expenseCategories,
         incomeCategories: incomeCategories,
         paymentMethods: _paymentMethods,
-        onSave: (amount, category, paymentMethod, isExpense) async {
+        onSave: (amount, category, paymentMethod, isExpense, transactionTime) async {
           try {
             await AccountRecordApi.create(
               amount: amount,
               categoryId: category.id,
               paymentMethodId: paymentMethod.id,
-              date: _dateStr(DateTime.now()),
+              transactionTime: transactionTime,
             );
             await _loadData();
             if (mounted) {
@@ -323,7 +325,7 @@ class _CategoryExpenseChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final entries = totals.entries.toList(growable: false);
-    final maxTotal = entries.fold<int>(1, (max, entry) => entry.value > max ? entry.value : max);
+    final total = entries.fold<int>(0, (sum, entry) => sum + entry.value);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,63 +337,144 @@ class _CategoryExpenseChart extends StatelessWidget {
             Text('카테고리별 지출', style: TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w700)),
           ],
         ),
-        const SizedBox(height: 26),
+        const SizedBox(height: 20),
         if (entries.isEmpty)
-          const Center(child: Text('이번 달 지출 내역이 없어요.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)))
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Text('이번 달 지출 내역이 없어요.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))),
+          )
         else
-          ...entries.asMap().entries.map((indexed) {
-            final color = colors[indexed.key % colors.length];
-            final name = indexed.value.key;
-            final amount = indexed.value.value;
-            final ratio = amount / maxTotal;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: _ExpenseBar(categoryName: name, amount: amount, ratio: ratio, color: color),
-            );
-          }),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _CategoryPieChart(entries: entries, colors: colors, total: total),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: entries.asMap().entries.map((indexed) {
+                    final color = colors[indexed.key % colors.length];
+                    final name = indexed.value.key;
+                    final amount = indexed.value.value;
+                    final percent = total == 0 ? 0 : (amount / total * 100).round();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _CategoryLegendRow(
+                        color: color,
+                        name: name,
+                        amount: amount,
+                        percent: percent,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
 }
 
-class _ExpenseBar extends StatelessWidget {
-  final String categoryName;
-  final int amount;
-  final double ratio;
-  final Color color;
+/// 카테고리별 지출 비중을 보여주는 원형(도넛) 차트.
+class _CategoryPieChart extends StatelessWidget {
+  final List<MapEntry<String, int>> entries;
+  final List<Color> colors;
+  final int total;
 
-  const _ExpenseBar({required this.categoryName, required this.amount, required this.ratio, required this.color});
+  const _CategoryPieChart({required this.entries, required this.colors, required this.total});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      width: 110,
+      height: 110,
+      child: CustomPaint(
+        painter: _PieChartPainter(
+          values: entries.map((e) => e.value.toDouble()).toList(),
+          colors: colors,
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('합계', style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+              Text(
+                _formatWon(total),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PieChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<Color> colors;
+
+  const _PieChartPainter({required this.values, required this.colors});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold<double>(0, (sum, value) => sum + value);
+    if (total <= 0) return;
+
+    final rect = Offset.zero & size;
+    var startAngle = -math.pi / 2;
+    for (var i = 0; i < values.length; i++) {
+      final sweepAngle = values[i] / total * 2 * math.pi;
+      final paint = Paint()
+        ..color = colors[i % colors.length]
+        ..style = PaintingStyle.fill;
+      canvas.drawArc(rect, startAngle, sweepAngle, true, paint);
+      startAngle += sweepAngle;
+    }
+
+    // 도넛 모양으로 보이도록 가운데를 흰색 원으로 뚫습니다.
+    final holePaint = Paint()..color = Colors.white;
+    canvas.drawCircle(size.center(Offset.zero), size.shortestSide / 2 * 0.56, holePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PieChartPainter oldDelegate) =>
+      oldDelegate.values != values || oldDelegate.colors != colors;
+}
+
+class _CategoryLegendRow extends StatelessWidget {
+  final Color color;
+  final String name;
+  final int amount;
+  final int percent;
+
+  const _CategoryLegendRow({
+    required this.color,
+    required this.name,
+    required this.amount,
+    required this.percent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
       children: [
-        Row(
-          children: [
-            Icon(Icons.circle, color: color, size: 8),
-            const SizedBox(width: 4),
-            Text(categoryName, style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 11, fontWeight: FontWeight.w700)),
-          ],
+        Icon(Icons.circle, color: color, size: 8),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 11, fontWeight: FontWeight.w700),
+          ),
         ),
-        const SizedBox(height: 4),
-        Stack(
-          children: [
-            Container(height: 6, decoration: BoxDecoration(color: AppColors.cardBorder, borderRadius: BorderRadius.circular(8))),
-            FractionallySizedBox(
-              widthFactor: ratio.clamp(0.08, 1.0).toDouble(),
-              child: Container(height: 6, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8))),
-            ),
-          ],
-        ),
-        const SizedBox(height: 3),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(_formatWon(amount), style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 9)),
-            const Text('₩', style: TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 10)),
-          ],
-        ),
+        const SizedBox(width: 6),
+        Text('$percent%', style: const TextStyle(color: AppColors.textTertiary, fontSize: 10)),
+        const SizedBox(width: 6),
+        Text(_formatWon(amount), style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 10, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -474,6 +557,7 @@ class _AddTransactionDialog extends StatefulWidget {
     CategoryModel category,
     PaymentMethodModel paymentMethod,
     bool isExpense,
+    DateTime transactionTime,
   ) onSave;
 
   const _AddTransactionDialog({
@@ -492,6 +576,8 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   final _amountCtrl = TextEditingController();
   late CategoryModel _selectedCategory;
   late PaymentMethodModel _selectedPaymentMethod;
+  DateTime _selectedDate = DateTime.now();
+  TimeOfDay _selectedTime = TimeOfDay.now();
 
   List<CategoryModel> get _activeCategories =>
       _isExpense ? widget.expenseCategories : widget.incomeCategories;
@@ -521,6 +607,33 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
     });
   }
 
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime,
+    );
+    if (picked != null) setState(() => _selectedTime = picked);
+  }
+
+  String get _formattedDate =>
+      '${_selectedDate.month}월 ${_selectedDate.day}일';
+
+  String get _formattedTime {
+    final hour = _selectedTime.hour.toString().padLeft(2, '0');
+    final minute = _selectedTime.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeColor = _isExpense ? AppColors.expenseAccent : AppColors.incomeAccent;
@@ -535,30 +648,47 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
             ]),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               _AmountField(controller: _amountCtrl, isExpense: _isExpense, color: activeColor),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
+              const _DialogLabel('날짜 · 시간'),
+              Row(children: [
+                Expanded(
+                  child: _PickerField(
+                    icon: Icons.calendar_today_outlined,
+                    label: _formattedDate,
+                    onTap: _pickDate,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _PickerField(
+                    icon: Icons.access_time,
+                    label: _formattedTime,
+                    onTap: _pickTime,
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 18),
               const _DialogLabel('카테고리'),
-              DropdownButtonFormField<CategoryModel>(
+              _FormDropdown<CategoryModel>(
+                icon: Icons.sell_outlined,
                 value: _selectedCategory,
-                isExpanded: true,
-                items: _activeCategories.map((category) => DropdownMenuItem(value: category, child: Text(category.name))).toList(),
-                onChanged: (category) => setState(() {
-                  if (category != null) _selectedCategory = category;
-                }),
+                items: _activeCategories,
+                labelOf: (category) => category.name,
+                onChanged: (category) => setState(() => _selectedCategory = category),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               const _DialogLabel('지출 수단'),
-              DropdownButtonFormField<PaymentMethodModel>(
+              _FormDropdown<PaymentMethodModel>(
+                icon: Icons.account_balance_wallet_outlined,
                 value: _selectedPaymentMethod,
-                isExpanded: true,
-                items: widget.paymentMethods.map((method) => DropdownMenuItem(value: method, child: Text(method.name))).toList(),
-                onChanged: (method) => setState(() {
-                  if (method != null) _selectedPaymentMethod = method;
-                }),
+                items: widget.paymentMethods,
+                labelOf: (method) => method.name,
+                onChanged: (method) => setState(() => _selectedPaymentMethod = method),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
               SizedBox(width: double.infinity, height: 48, child: FilledButton(
                 onPressed: () async {
                   final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
@@ -566,8 +696,15 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('금액을 입력해 주세요.')));
                     return;
                   }
+                  final transactionTime = DateTime(
+                    _selectedDate.year,
+                    _selectedDate.month,
+                    _selectedDate.day,
+                    _selectedTime.hour,
+                    _selectedTime.minute,
+                  );
                   Navigator.pop(context);
-                  await widget.onSave(amount, _selectedCategory, _selectedPaymentMethod, _isExpense);
+                  await widget.onSave(amount, _selectedCategory, _selectedPaymentMethod, _isExpense, transactionTime);
                 },
                 style: FilledButton.styleFrom(backgroundColor: activeColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button))),
                 child: const Text('기록 저장하기'),
@@ -588,6 +725,89 @@ class _DialogLabel extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 6),
     child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
   );
+}
+
+/// 날짜/시간처럼 탭하면 시스템 피커가 뜨는 입력 필드.
+/// 다른 폼 필드와 같은 테두리·모서리를 써서 하나의 폼처럼 보이게 합니다.
+class _PickerField extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _PickerField({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.button),
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.inputFill,
+          borderRadius: BorderRadius.circular(AppRadius.button),
+          border: Border.all(color: AppColors.inputBorder),
+        ),
+        child: Row(children: [
+          Icon(icon, size: 16, color: AppColors.navyDark),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// 카테고리/지출 수단처럼 아이콘 + 드롭다운을 하나의 카드형 필드로 묶어 보여줍니다.
+class _FormDropdown<T> extends StatelessWidget {
+  final IconData icon;
+  final T value;
+  final List<T> items;
+  final String Function(T) labelOf;
+  final ValueChanged<T> onChanged;
+
+  const _FormDropdown({
+    required this.icon,
+    required this.value,
+    required this.items,
+    required this.labelOf,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.inputFill,
+        borderRadius: BorderRadius.circular(AppRadius.button),
+        border: Border.all(color: AppColors.inputBorder),
+      ),
+      child: DropdownButtonFormField<T>(
+        value: value,
+        isExpanded: true,
+        icon: const Icon(Icons.expand_more, color: AppColors.textTertiary),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          prefixIcon: Icon(icon, size: 18, color: AppColors.navyDark),
+        ),
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+        items: items
+            .map((item) => DropdownMenuItem(value: item, child: Text(labelOf(item))))
+            .toList(),
+        onChanged: (next) {
+          if (next != null) onChanged(next);
+        },
+      ),
+    );
+  }
 }
 
 class _AmountField extends StatelessWidget {
