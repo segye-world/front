@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
-import '../../models/payment_method_model.dart';
 import '../../models/schedule_model.dart';
 import '../../models/todo_model.dart';
 import '../../services/account_record_api.dart';
 import '../../services/category_api.dart';
 import '../../services/finance_settings_api.dart';
-import '../../services/payment_method_api.dart';
 import '../../services/schedule_api.dart';
 import '../../services/todo_api.dart';
 import '../../theme/app_colors.dart';
@@ -36,8 +34,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   late final List<_TodoSectionState> _sections;
   late final List<AccountRecordModel> _financeEntries;
   List<CategoryModel> _categories = const [];
-  List<PaymentMethodModel> _paymentMethods = const [];
-  int? _selectedPaymentMethodId;
+  // 지출 수단(=수입원)은 별도 목록이 아니라 수입원 카테고리를 그대로 가리킨다.
+  int? _selectedSourceCategoryId;
 
   // 홈 화면이 된 이후로는 뒤로가기 대신 캘린더로 날짜를 갈아끼우므로
   // 화면이 살아있는 동안 바뀔 수 있는 상태로 둡니다.
@@ -214,7 +212,6 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       final results = await Future.wait([
         AccountRecordApi.fetchByDate(_dateString),
         CategoryApi.fetchAll(),
-        PaymentMethodApi.fetchAll(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -222,9 +219,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           ..clear()
           ..addAll(results[0] as List<AccountRecordModel>);
         _categories = results[1] as List<CategoryModel>;
-        _paymentMethods = results[2] as List<PaymentMethodModel>;
         _selectedFinanceCategory ??= _expenseCategories.firstOrNull;
-        _selectedPaymentMethodId ??= _paymentMethods.firstOrNull?.id;
+        _selectedSourceCategoryId ??= _incomeCategoryModels.firstOrNull?.id;
       });
     } catch (_) {
       // Keep the schedule screen usable when finance data is temporarily unavailable.
@@ -513,11 +509,18 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           category.type == (_financeType == _FinanceType.expense ? 'EXPENSE' : 'INCOME'),
     ).firstOrNull;
 
-    final selectedPaymentMethod = _paymentMethods.where((method) => method.id == _selectedPaymentMethodId).firstOrNull;
+    // 지출 수단(=지출이 빠져나가는 수입원)은 지출에만 필요합니다. 수입은 수입원 카테고리만으로 기록됩니다.
+    final requiresSourceCategory = _financeType == _FinanceType.expense;
+    final selectedSourceCategory =
+        _incomeCategoryModels.where((category) => category.id == _selectedSourceCategoryId).firstOrNull;
 
-    if (amount != null && amount > 0 && (selectedCategory == null || selectedPaymentMethod == null)) {
+    if (amount != null &&
+        amount > 0 &&
+        (selectedCategory == null || (requiresSourceCategory && selectedSourceCategory == null))) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('수입·지출 카테고리와 지출 수단을 불러온 뒤 다시 시도해 주세요.')),
+        SnackBar(content: Text(requiresSourceCategory
+            ? '지출 카테고리와 지출 수단을 불러온 뒤 다시 시도해 주세요.'
+            : '수입원 카테고리를 불러온 뒤 다시 시도해 주세요.')),
       );
       return;
     }
@@ -532,11 +535,14 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       );
 
       AccountRecordModel? createdRecord;
-      if (amount != null && amount > 0 && selectedCategory != null && selectedPaymentMethod != null) {
+      if (amount != null &&
+          amount > 0 &&
+          selectedCategory != null &&
+          (!requiresSourceCategory || selectedSourceCategory != null)) {
         createdRecord = await AccountRecordApi.create(
           amount: amount,
           categoryId: selectedCategory.id,
-          paymentMethodId: selectedPaymentMethod.id,
+          sourceCategoryId: requiresSourceCategory ? selectedSourceCategory!.id : null,
           scheduleId: schedule.id,
           transactionTime: DateTime(
             _selectedDate.year,
@@ -607,6 +613,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       ? _expenseCategories
       : _incomeCategories;
 
+  // 지출 수단(=수입원) 드롭다운은 이름이 아니라 id가 필요하므로 모델 그대로 둔다.
+  List<CategoryModel> get _incomeCategoryModels =>
+      _categories.where((category) => category.type == 'INCOME').toList();
+
   _TodoSectionState _sectionById(int sectionId) {
     return _sections.firstWhere((section) => section.id == sectionId);
   }
@@ -628,10 +638,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       financeType: _financeType,
       activeCategories: _activeCategories,
       selectedFinanceCategory: _selectedFinanceCategory ?? '',
-      paymentMethods: _paymentMethods,
-      selectedPaymentMethodId: _selectedPaymentMethodId,
-      onPaymentMethodChanged: (value) =>
-          setState(() => _selectedPaymentMethodId = value),
+      sourceCategories: _incomeCategoryModels,
+      selectedSourceCategoryId: _selectedSourceCategoryId,
+      onSourceCategoryChanged: (value) =>
+          setState(() => _selectedSourceCategoryId = value),
       draftTodos: _draftTodos,
       onModeSelected: _setMode,
       onSectionLongPress: _openEditMode,
@@ -1456,9 +1466,9 @@ class _DetailPanel extends StatelessWidget {
   final _FinanceType financeType;
   final List<String> activeCategories;
   final String selectedFinanceCategory;
-  final List<PaymentMethodModel> paymentMethods;
-  final int? selectedPaymentMethodId;
-  final ValueChanged<int?> onPaymentMethodChanged;
+  final List<CategoryModel> sourceCategories;
+  final int? selectedSourceCategoryId;
+  final ValueChanged<int?> onSourceCategoryChanged;
   final List<String> draftTodos;
   final ValueChanged<_DetailMode> onModeSelected;
   final ValueChanged<int> onSectionLongPress;
@@ -1494,9 +1504,9 @@ class _DetailPanel extends StatelessWidget {
     required this.financeType,
     required this.activeCategories,
     required this.selectedFinanceCategory,
-    required this.paymentMethods,
-    required this.selectedPaymentMethodId,
-    required this.onPaymentMethodChanged,
+    required this.sourceCategories,
+    required this.selectedSourceCategoryId,
+    required this.onSourceCategoryChanged,
     required this.draftTodos,
     required this.onModeSelected,
     required this.onSectionLongPress,
@@ -1559,9 +1569,9 @@ class _DetailPanel extends StatelessWidget {
                   financeType: financeType,
                   activeCategories: activeCategories,
                   selectedFinanceCategory: selectedFinanceCategory,
-                  paymentMethods: paymentMethods,
-                  selectedPaymentMethodId: selectedPaymentMethodId,
-                  onPaymentMethodChanged: onPaymentMethodChanged,
+                  sourceCategories: sourceCategories,
+                  selectedSourceCategoryId: selectedSourceCategoryId,
+                  onSourceCategoryChanged: onSourceCategoryChanged,
                   draftTodos: draftTodos,
                   onColorSelected: onColorSelected,
                   onStartHourChanged: onStartHourChanged,
@@ -1896,9 +1906,9 @@ class _ScheduleAddPanel extends StatelessWidget {
   final _FinanceType financeType;
   final List<String> activeCategories;
   final String selectedFinanceCategory;
-  final List<PaymentMethodModel> paymentMethods;
-  final int? selectedPaymentMethodId;
-  final ValueChanged<int?> onPaymentMethodChanged;
+  final List<CategoryModel> sourceCategories;
+  final int? selectedSourceCategoryId;
+  final ValueChanged<int?> onSourceCategoryChanged;
   final List<String> draftTodos;
   final ValueChanged<int> onColorSelected;
   final ValueChanged<double> onStartHourChanged;
@@ -1921,9 +1931,9 @@ class _ScheduleAddPanel extends StatelessWidget {
     required this.financeType,
     required this.activeCategories,
     required this.selectedFinanceCategory,
-    required this.paymentMethods,
-    required this.selectedPaymentMethodId,
-    required this.onPaymentMethodChanged,
+    required this.sourceCategories,
+    required this.selectedSourceCategoryId,
+    required this.onSourceCategoryChanged,
     required this.draftTodos,
     required this.onColorSelected,
     required this.onStartHourChanged,
@@ -2042,7 +2052,7 @@ class _ScheduleAddPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const _FieldLabel('카테고리'),
+        _FieldLabel(financeType == _FinanceType.expense ? '지출 카테고리' : '수입원 카테고리'),
         ...activeCategories.map(
           (category) => RadioListTile<String>(
             dense: true,
@@ -2055,16 +2065,19 @@ class _ScheduleAddPanel extends StatelessWidget {
             title: Text(category, style: const TextStyle(fontSize: 13)),
           ),
         ),
-        const SizedBox(height: 12),
-        const _FieldLabel('지출 수단'),
-        DropdownButtonFormField<int>(
-          value: selectedPaymentMethodId,
-          decoration: const InputDecoration(border: UnderlineInputBorder()),
-          items: paymentMethods
-              .map((method) => DropdownMenuItem(value: method.id, child: Text(method.name)))
-              .toList(),
-          onChanged: onPaymentMethodChanged,
-        ),
+        // 지출 수단(=수입원)은 돈이 빠져나가는 곳을 고르는 항목이라 지출에만 필요합니다.
+        if (financeType == _FinanceType.expense) ...[
+          const SizedBox(height: 12),
+          const _FieldLabel('지출 수단'),
+          DropdownButtonFormField<int>(
+            value: selectedSourceCategoryId,
+            decoration: const InputDecoration(border: UnderlineInputBorder()),
+            items: sourceCategories
+                .map((source) => DropdownMenuItem(value: source.id, child: Text(source.name)))
+                .toList(),
+            onChanged: onSourceCategoryChanged,
+          ),
+        ],
         const _FieldLabel('메모'),
         TextField(
           controller: memoController,
