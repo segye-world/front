@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
 import '../../services/token_storage.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -54,7 +55,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('탈퇴', style: TextStyle(color: Colors.red)),
+            child: const Text('탈퇴', style: TextStyle(color: AppColors.expenseAccent)),
           ),
         ],
       ),
@@ -96,7 +97,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                           width: 48,
                           height: 48,
                           decoration: const BoxDecoration(
-                            color: Color(0xFF242424),
+                            color: AppColors.textPrimary,
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
@@ -113,14 +114,14 @@ class _MyPageScreenState extends State<MyPageScreen> {
                               displayId,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF6B6B6B),
+                                color: AppColors.textSecondary,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               displayEmail,
                               style: const TextStyle(
-                                color: Color(0xFFBABABA),
+                                color: AppColors.textTertiary,
                                 fontSize: 12,
                               ),
                             ),
@@ -160,13 +161,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     const SizedBox(height: 24),
                     _ActionRow(
                       label: '로그아웃',
-                      color: const Color(0xFF616161),
+                      color: AppColors.textSecondary,
                       onTap: () => _logout(context),
                     ),
                     const SizedBox(height: 14),
                     _ActionRow(
                       label: '탈퇴하기',
-                      color: const Color(0xFFE58787),
+                      color: AppColors.expenseAccent,
                       onTap: () => _deleteAccount(context),
                     ),
                   ],
@@ -200,15 +201,15 @@ class _MenuRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: const Color(0xFF8B97B0)),
+            Icon(icon, size: 20, color: AppColors.textTertiary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(color: Color(0xFF4F4F4F)),
+                style: const TextStyle(color: AppColors.textPrimary),
               ),
             ),
-            const Icon(Icons.chevron_right, size: 16, color: Color(0xFFB0B8C8)),
+            const Icon(Icons.chevron_right, size: 18, color: AppColors.textTertiary),
           ],
         ),
       ),
@@ -229,7 +230,7 @@ class _ActionRow extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          const Icon(Icons.logout, size: 15, color: Color(0xFF8B97B0)),
+          const Icon(Icons.logout, size: 20, color: AppColors.textTertiary),
           const SizedBox(width: 12),
           Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
         ],

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
+import '../../theme/app_text_styles.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -55,18 +58,18 @@ class _MyNotificationSettingScreenState
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF8F0),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFFE0B2)),
+                    color: AppColors.warningBackground,
+                    borderRadius: BorderRadius.circular(AppRadius.button),
+                    border: Border.all(color: AppColors.warningBorder),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.info_outline, size: 16, color: Color(0xFFE8A030)),
+                      Icon(Icons.info_outline, size: 20, color: AppColors.warningIcon),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '알림 기능은 준비 중입니다. 설정은 저장되지 않아요.',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF795548)),
+                          style: TextStyle(fontSize: 11, color: AppColors.warningText),
                         ),
                       ),
                     ],
@@ -102,13 +105,13 @@ class _NotificationTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFEEE0E0)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color(0xFFF7A5A5)),
+          Icon(icon, size: 20, color: AppColors.primaryPink),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -118,16 +121,14 @@ class _NotificationTile extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 3),
-                Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 11, color: Colors.black45)),
+                Text(subtitle, style: AppTextStyles.caption),
               ],
             ),
           ),
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFFF7A5A5),
+            activeColor: AppColors.primaryPink,
           ),
         ],
       ),

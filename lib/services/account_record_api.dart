@@ -28,13 +28,13 @@ class AccountRecordApi {
     required int categoryId,
     int? scheduleId,
     int? paymentMethodId,
-    required String date, // YYYY-MM-DD
+    required DateTime transactionTime,
   }) async {
     final response = await ApiClient.post('/api/v1/account-records', {
       'categoryId': categoryId,
       'amount': amount,
       if (paymentMethodId != null) 'paymentMethodId': paymentMethodId,
-      'transactionTime': '${date}T00:00:00',
+      'transactionTime': _isoLocal(transactionTime),
       if (scheduleId != null) 'scheduleId': scheduleId,
     });
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -43,4 +43,11 @@ class AccountRecordApi {
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     return AccountRecordModel.fromJson(body['data'] as Map<String, dynamic>);
   }
+}
+
+/// 백엔드 LocalDateTime 형식(yyyy-MM-ddTHH:mm:ss)에 맞춰 타임존 없이 직렬화합니다.
+String _isoLocal(DateTime dt) {
+  String pad(int n) => n.toString().padLeft(2, '0');
+  return '${dt.year}-${pad(dt.month)}-${pad(dt.day)}'
+      'T${pad(dt.hour)}:${pad(dt.minute)}:${pad(dt.second)}';
 }

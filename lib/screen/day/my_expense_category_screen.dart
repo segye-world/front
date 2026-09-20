@@ -5,6 +5,9 @@ import '../../models/payment_method_model.dart';
 import '../../services/category_api.dart';
 import '../../services/finance_settings_api.dart';
 import '../../services/payment_method_api.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
+import '../../theme/app_text_styles.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -120,9 +123,8 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('카테고리 삭제', style: TextStyle(fontSize: 15)),
-        content: Text('"${cat.name}" 카테고리를 삭제할까요?',
-            style: const TextStyle(fontSize: 13)),
+        title: const Text('카테고리 삭제'),
+        content: Text('"${cat.name}" 카테고리를 삭제할까요?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -130,7 +132,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
           TextButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('삭제',
-                  style: TextStyle(color: Color(0xFFE05353)))),
+                  style: TextStyle(color: AppColors.expenseAccent))),
         ],
       ),
     );
@@ -162,7 +164,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                        color: Color(0xFFF7A5A5), strokeWidth: 2))
+                        color: AppColors.primaryPink, strokeWidth: 2))
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
@@ -187,15 +189,13 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(title, style: AppTextStyles.subtitle),
             TextButton.icon(
               onPressed: () => _showAddDialog(type),
               icon: const Icon(Icons.add, size: 16),
-              label: const Text('추가', style: TextStyle(fontSize: 12)),
+              label: const Text('추가', style: AppTextStyles.label),
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFF7A5A5),
+                foregroundColor: AppColors.primaryPink,
                 padding: EdgeInsets.zero,
               ),
             ),
@@ -205,8 +205,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
         if (list.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text('카테고리가 없어요.',
-                style: TextStyle(fontSize: 13, color: Colors.black45)),
+            child: Text('카테고리가 없어요.', style: AppTextStyles.caption),
           )
         else
           ...list.map(
@@ -223,15 +222,15 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
   Widget _buildPaymentMethodSection(List<PaymentMethodModel> methods) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text('지출 수단', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-        TextButton.icon(onPressed: _showAddPaymentMethodDialog, icon: const Icon(Icons.add, size: 16), label: const Text('추가', style: TextStyle(fontSize: 12)), style: TextButton.styleFrom(foregroundColor: const Color(0xFFF7A5A5), padding: EdgeInsets.zero)),
+        const Text('지출 수단', style: AppTextStyles.subtitle),
+        TextButton.icon(onPressed: _showAddPaymentMethodDialog, icon: const Icon(Icons.add, size: 16), label: const Text('추가', style: AppTextStyles.label), style: TextButton.styleFrom(foregroundColor: AppColors.primaryPink, padding: EdgeInsets.zero)),
       ]),
       const SizedBox(height: 8),
-      if (methods.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('지출 수단이 없어요.', style: TextStyle(fontSize: 13, color: Colors.black45)))
+      if (methods.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('지출 수단이 없어요.', style: AppTextStyles.caption))
       else ...methods.map((method) => Container(
         margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFEEE0E0))),
-        child: Row(children: [const Icon(Icons.account_balance_wallet_outlined, size: 16, color: Color(0xFF53627D)), const SizedBox(width: 10), Expanded(child: Text(method.name, style: const TextStyle(fontWeight: FontWeight.w600))), const Text('연결된 수입원', style: TextStyle(fontSize: 11, color: Colors.black45))]),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.card), border: Border.all(color: AppColors.cardBorder)),
+        child: Row(children: [const Icon(Icons.account_balance_wallet_outlined, size: 20, color: AppColors.navyDark), const SizedBox(width: 10), Expanded(child: Text(method.name, style: const TextStyle(fontWeight: FontWeight.w600))), const Text('연결된 수입원', style: AppTextStyles.caption)]),
       )),
     ]);
   }
@@ -254,18 +253,18 @@ class _CategoryRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFEEE0E0)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
         children: [
           Icon(
             category.type == 'INCOME' ? Icons.trending_up : Icons.trending_down,
-            size: 16,
+            size: 20,
             color: category.type == 'INCOME'
-                ? const Color(0xFF5AAD72)
-                : const Color(0xFFE05353),
+                ? AppColors.incomeAccent
+                : AppColors.expenseAccent,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -276,21 +275,21 @@ class _CategoryRow extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 Text(
                   category.type == 'INCOME' ? '수입' : '지출',
-                  style: const TextStyle(fontSize: 11, color: Colors.black45),
+                  style: AppTextStyles.caption,
                 ),
               ],
             ),
           ),
           IconButton(
             onPressed: onEdit,
-            icon: const Icon(Icons.edit_outlined, size: 16,
-                color: Color(0xFFF7A5A5)),
+            icon: const Icon(Icons.edit_outlined, size: 18,
+                color: AppColors.primaryPink),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),
           IconButton(
             onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline, size: 16,
+            icon: const Icon(Icons.delete_outline, size: 18,
                 color: Colors.black26),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -337,30 +336,27 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
   Widget build(BuildContext context) {
     final isEdit = widget.initial != null;
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(isEdit ? '카테고리 수정' : '카테고리 추가',
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(isEdit ? '카테고리 수정' : '카테고리 추가', style: AppTextStyles.title),
             const SizedBox(height: 16),
             TextField(
               controller: _nameCtrl,
               decoration: InputDecoration(
                 hintText: '카테고리 이름',
                 filled: true,
-                fillColor: const Color(0xFFF8F9FB),
+                fillColor: AppColors.inputFill,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFE0E3E8)),
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                  borderSide: const BorderSide(color: AppColors.inputBorder),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFE0E3E8)),
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                  borderSide: const BorderSide(color: AppColors.inputBorder),
                 ),
               ),
             ),
@@ -371,7 +367,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
                   child: _TypeChip(
                     label: '지출',
                     isActive: _type == 'EXPENSE',
-                    activeColor: const Color(0xFFE05353),
+                    activeColor: AppColors.expenseAccent,
                     onTap: () => setState(() => _type = 'EXPENSE'),
                   ),
                 ),
@@ -380,7 +376,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
                   child: _TypeChip(
                     label: '수입',
                     isActive: _type == 'INCOME',
-                    activeColor: const Color(0xFF5AAD72),
+                    activeColor: AppColors.incomeAccent,
                     onTap: () => setState(() => _type = 'INCOME'),
                   ),
                 ),
@@ -392,10 +388,6 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
                     child: const Text('취소'),
                   ),
                 ),
@@ -413,11 +405,6 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
                       Navigator.pop(
                           context, _CategoryFormResult(name: name, type: _type));
                     },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFF7A5A5),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
                     child: Text(isEdit ? '저장' : '추가'),
                   ),
                 ),
@@ -444,7 +431,7 @@ class _NameFormDialogState extends State<_NameFormDialog> {
   void dispose() { _controller.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title, style: const TextStyle(fontSize: 15)),
+    title: Text(widget.title),
     content: TextField(controller: _controller, autofocus: true, decoration: InputDecoration(hintText: widget.hintText)),
     actions: [
       TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
@@ -479,7 +466,7 @@ class _TypeChip extends StatelessWidget {
             color: isActive ? activeColor : Colors.black26,
             width: 1.5,
           ),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppRadius.button),
         ),
         child: Text(
           label,

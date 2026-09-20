@@ -10,6 +10,7 @@ import '../../services/finance_settings_api.dart';
 import '../../services/payment_method_api.dart';
 import '../../services/schedule_api.dart';
 import '../../services/todo_api.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -27,9 +28,9 @@ enum _DetailMode { todo, finance, add }
 enum _FinanceType { expense, income }
 
 class _DayDetailScreenState extends State<DayDetailScreen> {
-  static const _accentColor = Color(0xFFF7A5A5);
+  static const _accentColor = AppColors.primaryPink;
   static const _surfaceColor = Color(0xFFFFFBFB);
-  static const _panelBorder = Color(0xFFE6DCDD);
+  static const _panelBorder = AppColors.cardBorder;
 
   late final List<_ScheduleBlock> _scheduleBlocks;
   late final List<_TodoSectionState> _sections;
@@ -174,7 +175,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE0E0E0),
+                    color: AppColors.cardBorder,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -537,7 +538,11 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           categoryId: selectedCategory.id,
           paymentMethodId: selectedPaymentMethod.id,
           scheduleId: schedule.id,
-          date: _dateString,
+          transactionTime: DateTime(
+            _selectedDate.year,
+            _selectedDate.month,
+            _selectedDate.day,
+          ),
         );
       }
 
@@ -687,7 +692,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF6F7A9B),
+        backgroundColor: AppColors.primaryPink,
         onPressed: _prepareAddMode,
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -914,7 +919,7 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
                                       height: 40,
                                       margin: const EdgeInsets.only(right: 2),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFF7A5A5)
+                                        color: AppColors.primaryPink
                                             .withValues(alpha: 0.7),
                                         borderRadius: BorderRadius.circular(2),
                                       ),
@@ -994,8 +999,8 @@ class _PanelRevealHandle extends StatelessWidget {
         label: '할 일 / 수입지출 패널 열기',
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF1F1),
-            border: const Border(left: BorderSide(color: Color(0xFFDCD6D6))),
+            color: AppColors.primaryPinkTint,
+            border: const Border(left: BorderSide(color: AppColors.cardBorder)),
             borderRadius: const BorderRadius.horizontal(
               left: Radius.circular(10),
             ),
@@ -1010,8 +1015,8 @@ class _PanelRevealHandle extends StatelessWidget {
           alignment: Alignment.center,
           child: const Icon(
             Icons.chevron_left,
-            size: 20,
-            color: Color(0xFFF7A5A5),
+            size: 18,
+            color: AppColors.primaryPink,
           ),
         ),
       ),
@@ -1039,7 +1044,7 @@ class _CompactTimelineRail extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(right: BorderSide(color: Color(0xFFDCD6D6))),
+        border: Border(right: BorderSide(color: AppColors.cardBorder)),
       ),
       child: Column(
         children: List.generate(24, (hour) {
@@ -1129,7 +1134,7 @@ class _DetailedTimeline extends StatelessWidget {
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: const Color(0xFFDCD6D6)),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: ListView.builder(
         physics: scrollEnabled ? null : const NeverScrollableScrollPhysics(),
@@ -1364,7 +1369,7 @@ class _SelectionConfirmBar extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF667195),
+                color: AppColors.navyDark,
               ),
             ),
           ),
@@ -1377,7 +1382,6 @@ class _SelectionConfirmBar extends StatelessWidget {
           FilledButton(
             onPressed: onConfirmed,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF6F7A9B),
               padding: const EdgeInsets.symmetric(horizontal: 14),
               visualDensity: VisualDensity.compact,
             ),
@@ -1419,7 +1423,7 @@ class _TimelineDayHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
-        color: isBaseDate ? const Color(0xFFFFF1F1) : const Color(0xFFF1F3F8),
+        color: isBaseDate ? AppColors.primaryPinkTint : const Color(0xFFF1F3F8),
         border: const Border(
           top: BorderSide(color: Color(0xFFB8BED2), width: 1.2),
         ),
@@ -1429,7 +1433,7 @@ class _TimelineDayHeader extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: isBaseDate ? const Color(0xFF667195) : const Color(0xFF7C86A5),
+          color: isBaseDate ? AppColors.navyDark : AppColors.navy,
         ),
       ),
     );
@@ -1596,10 +1600,10 @@ class _PanelTabs extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? Colors.white : const Color(0xFFF5F0F0),
+            color: isActive ? Colors.white : AppColors.background,
             border: Border(
               bottom: BorderSide(
-                color: isActive ? const Color(0xFF6F7A9B) : Colors.transparent,
+                color: isActive ? AppColors.navy : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -1668,7 +1672,7 @@ class _TodoPanel extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: section.color,
-              border: Border.all(color: const Color(0xFFE1C9CC)),
+              border: Border.all(color: AppColors.cardBorder),
             ),
             padding: const EdgeInsets.all(10),
             child: Column(
@@ -1733,9 +1737,6 @@ class _TodoPanel extends StatelessWidget {
                         ),
                         FilledButton(
                           onPressed: onSectionEditSaved,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF6F7A9B),
-                          ),
                           child: const Text('저장'),
                         ),
                       ],
@@ -1776,7 +1777,7 @@ class _TodoRow extends StatelessWidget {
         visualDensity: VisualDensity.compact,
         contentPadding: EdgeInsets.zero,
         controlAffinity: ListTileControlAffinity.leading,
-        activeColor: const Color(0xFF6F7A9B),
+        activeColor: AppColors.navy,
         value: item.isDone,
         onChanged: (checked) => onChanged(sectionId, item.id, checked),
         title: Text(
@@ -1834,15 +1835,15 @@ class _FinancePanel extends StatelessWidget {
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF4F4),
-            border: Border.all(color: const Color(0xFFE1C9CC)),
+            color: AppColors.primaryPinkTint,
+            border: Border.all(color: AppColors.cardBorder),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: double.infinity,
-                color: const Color(0xFFF6B7B7),
+                color: AppColors.primaryPink,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 child: Text(
                   group.key,
@@ -1869,8 +1870,8 @@ class _FinancePanel extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: entry.categoryType == 'INCOME'
-                          ? const Color(0xFF1B5E20)
-                          : const Color(0xFFB71C1C),
+                          ? AppColors.income
+                          : AppColors.expense,
                     ),
                   ),
                 ),
@@ -2082,9 +2083,6 @@ class _ScheduleAddPanel extends StatelessWidget {
         const SizedBox(height: 28),
         FilledButton(
           onPressed: onSubmit,
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF6F7A9B),
-          ),
           child: const Text('일정 추가'),
         ),
       ],

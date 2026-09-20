@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../../services/api_client.dart';
 import '../../services/token_storage.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
+import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -100,9 +104,9 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFEEE0E0)),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.large),
+                    border: Border.all(color: AppColors.cardBorder),
                   ),
                   child: Row(
                     children: [
@@ -110,7 +114,7 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
                         width: 44,
                         height: 44,
                         decoration: const BoxDecoration(
-                          color: Color(0xFF242424),
+                          color: AppColors.textPrimary,
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
@@ -129,10 +133,7 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
                               style: const TextStyle(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 2),
-                            Text(
-                              _email,
-                              style: const TextStyle(fontSize: 12, color: Colors.black45),
-                            ),
+                            Text(_email, style: AppTextStyles.caption),
                           ],
                         ),
                       ),
@@ -140,10 +141,7 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  '비밀번호 변경',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
+                const Text('비밀번호 변경', style: AppTextStyles.subtitle),
                 const SizedBox(height: 12),
                 _PwField(controller: _currentPwCtrl, label: '현재 비밀번호', hint: '현재 비밀번호 입력'),
                 const SizedBox(height: 10),
@@ -158,17 +156,9 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
                   ),
                 ],
                 const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: _isLoading ? null : _changePassword,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFF7A5A5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text(_isLoading ? '변경 중...' : '비밀번호 변경'),
-                  ),
+                AppPrimaryButton(
+                  onPressed: _isLoading ? null : _changePassword,
+                  label: _isLoading ? '변경 중...' : '비밀번호 변경',
                 ),
               ],
             ),
@@ -194,7 +184,7 @@ class _PwField extends StatelessWidget {
       children: [
         Text(label,
             style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black54)),
+                fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
@@ -203,18 +193,18 @@ class _PwField extends StatelessWidget {
             hintText: hint,
             hintStyle: const TextStyle(color: Colors.black26),
             filled: true,
-            fillColor: const Color(0xFFF8F9FB),
+            fillColor: AppColors.inputFill,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE0E3E8)),
+              borderRadius: BorderRadius.circular(AppRadius.button),
+              borderSide: const BorderSide(color: AppColors.inputBorder),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE0E3E8)),
+              borderRadius: BorderRadius.circular(AppRadius.button),
+              borderSide: const BorderSide(color: AppColors.inputBorder),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFF3A3A4), width: 1.5),
+              borderRadius: BorderRadius.circular(AppRadius.button),
+              borderSide: const BorderSide(color: AppColors.primaryPink, width: 1.5),
             ),
           ),
         ),
