@@ -11,16 +11,10 @@ import '../screen/day/my_notification_setting_screen.dart';
 import '../screen/day/my_profile_manage_screen.dart';
 import '../screen/main_screen.dart';
 import '../screen/my/mypage_screen.dart';
-import '../screen/start/start_screen.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
-      case Routes.start:
-        return MaterialPageRoute(
-          builder: (_) => const StartScreen(),
-          settings: settings,
-        );
       case Routes.login:
         return MaterialPageRoute(
           builder: (_) => const LoginScreen(),
