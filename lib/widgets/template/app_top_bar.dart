@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
+import '../../theme/app_icon_sizes.dart';
+import '../../theme/app_text_styles.dart';
 
 /// 앱 전체에서 공통으로 쓰는 상단바.
 ///
@@ -43,7 +45,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     final resolvedLeading = leading ??
         (showBack && canPop
             ? IconButton(
-                icon: const Icon(Icons.chevron_left, color: _iconColor),
+                icon: const Icon(Icons.chevron_left, size: AppIconSize.action, color: _iconColor),
                 onPressed: () => Navigator.of(context).maybePop(),
               )
             : null);
@@ -59,11 +61,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       leading: resolvedLeading,
       title: Text(
         title,
-        style: const TextStyle(
-          color: _titleColor,
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
+        style: AppTextStyles.title.copyWith(color: _titleColor),
       ),
       actions: actions,
       bottom: const PreferredSize(

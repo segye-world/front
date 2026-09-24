@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/account_record_model.dart';
 import '../../services/account_record_api.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
@@ -94,7 +95,7 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
                         if (grouped.isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(top: 80),
-                            child: Center(child: Text('해당 월의 거래 내역이 없어요.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))),
+                            child: Center(child: Text('해당 월의 거래 내역이 없어요.', style: AppTextStyles.caption)),
                           )
                         else
                           ...grouped.entries.map(
@@ -137,11 +138,11 @@ class _MonthSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        InkWell(onTap: onPrevious, child: const Icon(Icons.chevron_left, size: 18, color: Colors.black87)),
+        InkWell(onTap: onPrevious, child: const Icon(Icons.chevron_left, size: AppIconSize.inline, color: AppColors.textPrimary)),
         const SizedBox(width: 12),
-        Text('${month.month}월', style: const TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w700)),
+        Text('${month.month}월', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(width: 12),
-        InkWell(onTap: onNext, child: const Icon(Icons.chevron_right, size: 18, color: Colors.black87)),
+        InkWell(onTap: onNext, child: const Icon(Icons.chevron_right, size: AppIconSize.inline, color: AppColors.textPrimary)),
       ],
     );
   }
@@ -165,13 +166,13 @@ class _FilterTabs extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 8),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: isSelected ? _CashRecordsScreenState._lineNavy : Colors.black12, width: 1)),
+              border: Border(bottom: BorderSide(color: isSelected ? _CashRecordsScreenState._lineNavy : AppColors.cardBorder, width: 1)),
             ),
             child: Text(
               filter.label,
               style: TextStyle(
                 color: isSelected ? _CashRecordsScreenState._lineNavy : AppColors.textSecondary,
-                fontSize: 13,
+                fontSize: AppTextStyles.body.fontSize,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
@@ -197,9 +198,9 @@ class _CategoryGroup extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(_categoryIcon(categoryName), size: 14, color: Colors.black),
+              Icon(_categoryIcon(categoryName), size: 14, color: AppColors.textPrimary),
               const SizedBox(width: 4),
-              Text(categoryName, style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w700)),
+              Text(categoryName, style: TextStyle(color: AppColors.textPrimary, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 10),
@@ -233,7 +234,7 @@ class _RecordRow extends StatelessWidget {
               children: [
                 Text(
                   record.categoryName,
-                  style: const TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
                 Text(_formatDateTime(record.transactionTime), style: AppTextStyles.caption),
@@ -244,7 +245,7 @@ class _RecordRow extends StatelessWidget {
             amountText,
             style: TextStyle(
               color: isIncome ? AppColors.income : AppColors.expense,
-              fontSize: 12,
+              fontSize: AppTextStyles.caption.fontSize,
               fontWeight: FontWeight.w700,
             ),
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_icon_sizes.dart';
 
 /// 하단 탭. 선언 순서가 곧 탭 인덱스입니다.
 enum AppNavItem { cash, home, mypage }
@@ -29,6 +30,7 @@ class AppBottomNavBar extends StatelessWidget {
       currentIndex: currentItem.index,
       onTap: (index) => _handleTap(context, AppNavItem.values[index]),
       type: BottomNavigationBarType.fixed,
+      iconSize: AppIconSize.action,
       selectedItemColor: Colors.white,
       unselectedItemColor: Colors.white,
       backgroundColor: barColor,

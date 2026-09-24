@@ -6,6 +6,7 @@ import '../../services/finance_settings_api.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_dialog.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -78,18 +79,12 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
   Future<void> _delete(CategoryModel cat) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('카테고리 삭제'),
+      builder: (_) => AppDialog(
+        title: '카테고리 삭제',
         content: Text('"${cat.name}" 카테고리를 삭제할까요?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('삭제',
-                  style: TextStyle(color: AppColors.expenseAccent))),
-        ],
+        confirmLabel: '삭제',
+        confirmColor: AppColors.expenseAccent,
+        onConfirm: () => Navigator.pop(context, true),
       ),
     );
     if (confirmed != true) return;
@@ -227,7 +222,7 @@ class _CategoryRow extends StatelessWidget {
           IconButton(
             onPressed: onDelete,
             icon: const Icon(Icons.delete_outline, size: 18,
-                color: Colors.black26),
+                color: AppColors.textTertiary),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),
@@ -272,84 +267,63 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.initial != null;
-    return Dialog(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(isEdit ? '카테고리 수정' : '카테고리 추가', style: AppTextStyles.title),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _nameCtrl,
-              decoration: InputDecoration(
-                hintText: '카테고리 이름',
-                filled: true,
-                fillColor: AppColors.inputFill,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                  borderSide: const BorderSide(color: AppColors.inputBorder),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                  borderSide: const BorderSide(color: AppColors.inputBorder),
-                ),
+    return AppDialog(
+      title: isEdit ? '카테고리 수정' : '카테고리 추가',
+      confirmLabel: isEdit ? '저장' : '추가',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _nameCtrl,
+            decoration: InputDecoration(
+              hintText: '카테고리 이름',
+              filled: true,
+              fillColor: AppColors.inputFill,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.button),
+                borderSide: const BorderSide(color: AppColors.inputBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.button),
+                borderSide: const BorderSide(color: AppColors.inputBorder),
               ),
             ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _TypeChip(
-                    label: '지출',
-                    isActive: _type == 'EXPENSE',
-                    activeColor: AppColors.expenseAccent,
-                    onTap: () => setState(() => _type = 'EXPENSE'),
-                  ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _TypeChip(
+                  label: '지출',
+                  isActive: _type == 'EXPENSE',
+                  activeColor: AppColors.expenseAccent,
+                  onTap: () => setState(() => _type = 'EXPENSE'),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _TypeChip(
-                    label: '수입원',
-                    isActive: _type == 'INCOME',
-                    activeColor: AppColors.incomeAccent,
-                    onTap: () => setState(() => _type = 'INCOME'),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _TypeChip(
+                  label: '수입원',
+                  isActive: _type == 'INCOME',
+                  activeColor: AppColors.incomeAccent,
+                  onTap: () => setState(() => _type = 'INCOME'),
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('취소'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () {
-                      final name = _nameCtrl.text.trim();
-                      if (name.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('이름을 입력해 주세요.')),
-                        );
-                        return;
-                      }
-                      Navigator.pop(
-                          context, _CategoryFormResult(name: name, type: _type));
-                    },
-                    child: Text(isEdit ? '저장' : '추가'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
+      onConfirm: () {
+        final name = _nameCtrl.text.trim();
+        if (name.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('이름을 입력해 주세요.')),
+          );
+          return;
+        }
+        Navigator.pop(context, _CategoryFormResult(name: name, type: _type));
+      },
     );
   }
 }
@@ -377,17 +351,16 @@ class _TypeChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: isActive ? activeColor.withValues(alpha: 0.1) : Colors.transparent,
           border: Border.all(
-            color: isActive ? activeColor : Colors.black26,
+            color: isActive ? activeColor : AppColors.textTertiary,
             width: 1.5,
           ),
           borderRadius: BorderRadius.circular(AppRadius.button),
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 13,
+          style: AppTextStyles.body.copyWith(
             fontWeight: FontWeight.w600,
-            color: isActive ? activeColor : Colors.black45,
+            color: isActive ? activeColor : AppColors.textTertiary,
           ),
         ),
       ),

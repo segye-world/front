@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: AppColors.primaryPink,
           foregroundColor: Colors.white,
           shape: buttonShape,
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          textStyle: AppTextStyles.button,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
