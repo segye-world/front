@@ -9,6 +9,11 @@ import '../../services/finance_settings_api.dart';
 import '../../services/schedule_api.dart';
 import '../../services/todo_api.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_icon_sizes.dart';
+import '../../theme/app_radius.dart';
+import '../../theme/app_shadows.dart';
+import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -27,8 +32,10 @@ enum _FinanceType { expense, income }
 
 class _DayDetailScreenState extends State<DayDetailScreen> {
   static const _accentColor = AppColors.primaryPink;
-  static const _surfaceColor = Color(0xFFFFFBFB);
+  static const _surfaceColor = AppColors.surface;
   static const _panelBorder = AppColors.cardBorder;
+  /// 색을 지정하지 않은 할 일 섹션("일정 외 할일")의 기본 색.
+  static const _defaultSectionColor = Color(0xFFD6D6D6);
 
   late final List<_ScheduleBlock> _scheduleBlocks;
   late final List<_TodoSectionState> _sections;
@@ -94,7 +101,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _TodoSectionState(
         id: 0,
         title: '일정 외 할일',
-        color: const Color(0xFFD6D6D6),
+        color: _defaultSectionColor,
         items: <_TodoItemState>[],
       ),
     ];
@@ -127,17 +134,18 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       }),
       dayForegroundColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return Colors.white;
-        if (states.contains(WidgetState.disabled)) return Colors.black26;
-        return Colors.black87;
+        if (states.contains(WidgetState.disabled)) return AppColors.textTertiary;
+        return AppColors.textPrimary;
       }),
       todayBorder: const BorderSide(width: 1.6, color: _accentColor),
       todayForegroundColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return Colors.white;
         return _accentColor;
       }),
-      weekdayStyle: const TextStyle(fontSize: 11, color: Colors.black54),
-      dayStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-      headerForegroundColor: Colors.black87,
+      weekdayStyle: AppTextStyles.small.copyWith(color: AppColors.textSecondary),
+      // dayForegroundColor가 색을 따로 관리하므로 크기만 가져다 씁니다.
+      dayStyle: TextStyle(fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w500),
+      headerForegroundColor: AppColors.textPrimary,
     );
   }
 
@@ -152,7 +160,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           colorScheme: Theme.of(sheetContext).colorScheme.copyWith(
             primary: _accentColor,
             onPrimary: Colors.white,
-            onSurface: Colors.black87,
+            onSurface: AppColors.textPrimary,
           ),
           datePickerTheme: _buildDatePickerTheme(),
         );
@@ -163,7 +171,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(AppRadius.large),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -254,7 +262,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         ..add(_TodoSectionState(
           id: 0,
           title: '일정 외 할일',
-          color: const Color(0xFFD6D6D6),
+          color: _defaultSectionColor,
           items: todos.where((todo) => todo.scheduleId == null).map(
             (todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
           ).toList(),
@@ -681,7 +689,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         showBack: false,
         leading: IconButton(
           tooltip: '날짜 선택',
-          icon: const Icon(Icons.calendar_month, color: _accentColor),
+          icon: const Icon(Icons.calendar_month, size: AppIconSize.action, color: _accentColor),
           onPressed: _openCalendarSheet,
         ),
       ),
@@ -704,7 +712,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primaryPink,
         onPressed: _prepareAddMode,
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add, size: AppIconSize.action, color: Colors.white),
       ),
       bottomNavigationBar: AppBottomNavBar(
         currentItem: AppNavItem.home,
@@ -864,14 +872,7 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
                           color: Colors.white,
                           boxShadow: t == 0
                               ? const []
-                              : [
-                                  BoxShadow(
-                                    color:
-                                        Colors.black.withValues(alpha: 0.12 * t),
-                                    blurRadius: 12,
-                                    offset: const Offset(2, 0),
-                                  ),
-                                ],
+                              : AppShadows.animatedEdgePanel(t),
                         ),
                         child: ClipRect(
                           child: Stack(
@@ -1012,15 +1013,9 @@ class _PanelRevealHandle extends StatelessWidget {
             color: AppColors.primaryPinkTint,
             border: const Border(left: BorderSide(color: AppColors.cardBorder)),
             borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(10),
+              left: Radius.circular(AppRadius.card),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 8,
-                offset: const Offset(-2, 0),
-              ),
-            ],
+            boxShadow: AppShadows.edgePanel,
           ),
           alignment: Alignment.center,
           child: const Icon(
@@ -1084,9 +1079,8 @@ class _CompactTimelineRail extends StatelessWidget {
               child: isMajorTick
                   ? Text(
                       '$hour',
-                      style: const TextStyle(
-                        fontSize: 8,
-                        color: Colors.black38,
+                      style: AppTextStyles.micro.copyWith(
+                        color: AppColors.textTertiary,
                         fontWeight: FontWeight.w600,
                       ),
                     )
@@ -1269,9 +1263,8 @@ class _TimelineHourRow extends StatelessWidget {
               child: Text(
                 '$label:00',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isSelected ? Colors.black87 : Colors.black54,
+                style: AppTextStyles.tiny.copyWith(
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
@@ -1291,26 +1284,24 @@ class _TimelineHourRow extends StatelessWidget {
           currentBlock.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 11,
+          style: AppTextStyles.small.copyWith(
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
         ),
       );
     }
 
     if (isSelectionStart) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 6),
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Text(
           '새 일정',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 11,
+          style: AppTextStyles.small.copyWith(
             fontWeight: FontWeight.w700,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
         ),
       );
@@ -1359,15 +1350,9 @@ class _SelectionConfirmBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(color: _DayDetailScreenState._accentColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: AppShadows.card,
       ),
       child: Row(
         children: [
@@ -1376,8 +1361,7 @@ class _SelectionConfirmBar extends StatelessWidget {
               '${_formatHour(startHour.toDouble())} – ${_formatHour(endHour.toDouble())} · $hours시간',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
+              style: AppTextStyles.caption.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppColors.navyDark,
               ),
@@ -1387,7 +1371,7 @@ class _SelectionConfirmBar extends StatelessWidget {
             tooltip: '선택 해제',
             visualDensity: VisualDensity.compact,
             onPressed: onCleared,
-            icon: const Icon(Icons.close, size: 18, color: Colors.black45),
+            icon: const Icon(Icons.close, size: AppIconSize.inline, color: AppColors.textTertiary),
           ),
           FilledButton(
             onPressed: onConfirmed,
@@ -1433,15 +1417,14 @@ class _TimelineDayHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
-        color: isBaseDate ? AppColors.primaryPinkTint : const Color(0xFFF1F3F8),
+        color: isBaseDate ? AppColors.primaryPinkTint : AppColors.inputFill,
         border: const Border(
-          top: BorderSide(color: Color(0xFFB8BED2), width: 1.2),
+          top: BorderSide(color: AppColors.textTertiary, width: 1.2),
         ),
       ),
       child: Text(
         '$month월 $day일 ($weekday)',
-        style: TextStyle(
-          fontSize: 11,
+        style: AppTextStyles.small.copyWith(
           fontWeight: FontWeight.w700,
           color: isBaseDate ? AppColors.navyDark : AppColors.navy,
         ),
@@ -1622,7 +1605,7 @@ class _PanelTabs extends StatelessWidget {
             label,
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: isActive ? Colors.black87 : Colors.black45,
+              color: isActive ? AppColors.textPrimary : AppColors.textTertiary,
             ),
           ),
         ),
@@ -1690,19 +1673,18 @@ class _TodoPanel extends StatelessWidget {
               children: [
                 Text(
                   section.title,
-                  style: const TextStyle(
-                    fontSize: 12,
+                  style: AppTextStyles.caption.copyWith(
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 8),
                 if (section.items.isEmpty && !isEditing)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
                       '등록된 할 일이 없습니다.',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                     ),
                   ),
                 ...section.items.map(
@@ -1736,21 +1718,25 @@ class _TodoPanel extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Wrap(
-                      spacing: 8,
-                      children: [
-                        OutlinedButton(
-                          onPressed: onSectionEditCanceled,
-                          child: const Text('취소'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: onSectionEditCanceled,
+                            child: const Text('취소'),
+                          ),
                         ),
-                        FilledButton(
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: AppPrimaryButton(
                           onPressed: onSectionEditSaved,
-                          child: const Text('저장'),
+                          label: '저장',
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ],
               ],
@@ -1793,7 +1779,7 @@ class _TodoRow extends StatelessWidget {
         title: Text(
           item.label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: AppTextStyles.caption.fontSize,
             decoration: item.isDone ? TextDecoration.lineThrough : null,
           ),
         ),
@@ -1804,7 +1790,7 @@ class _TodoRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          const Icon(Icons.drag_indicator, size: 16, color: Colors.black38),
+          const Icon(Icons.drag_indicator, size: 16, color: AppColors.textTertiary),
           const SizedBox(width: 4),
           Expanded(
             child: TextFormField(
@@ -1857,9 +1843,8 @@ class _FinancePanel extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 child: Text(
                   group.key,
-                  style: const TextStyle(
+                  style: AppTextStyles.caption.copyWith(
                     color: Colors.white,
-                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1867,17 +1852,16 @@ class _FinancePanel extends StatelessWidget {
               ...group.value.map(
                 (entry) => ListTile(
                   dense: true,
-                  title: Text(entry.categoryName, style: const TextStyle(fontSize: 12)),
+                  title: Text(entry.categoryName, style: TextStyle(fontSize: AppTextStyles.caption.fontSize)),
                   subtitle: Text(
                     entry.categoryType == 'INCOME' ? '수입' : '지출',
-                    style: const TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: AppTextStyles.small.fontSize),
                   ),
                   trailing: Text(
                     _formatAmount(
                       entry.categoryType == 'INCOME' ? entry.amount : -entry.amount,
                     ),
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: AppTextStyles.caption.copyWith(
                       fontWeight: FontWeight.w700,
                       color: entry.categoryType == 'INCOME'
                           ? AppColors.income
@@ -1972,7 +1956,7 @@ class _ScheduleAddPanel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: index == selectedColorIndex
-                        ? Colors.black87
+                        ? AppColors.textPrimary
                         : Colors.transparent,
                     width: 2,
                   ),
@@ -2018,7 +2002,7 @@ class _ScheduleAddPanel extends StatelessWidget {
                 ),
               ),
             ),
-            IconButton(onPressed: onDraftTodoAdded, icon: const Icon(Icons.add)),
+            IconButton(onPressed: onDraftTodoAdded, icon: const Icon(Icons.add, size: AppIconSize.inline)),
           ],
         ),
         if (draftTodos.isNotEmpty) ...[
@@ -2062,7 +2046,7 @@ class _ScheduleAddPanel extends StatelessWidget {
             onChanged: (value) {
               if (value != null) onFinanceCategoryChanged(value);
             },
-            title: Text(category, style: const TextStyle(fontSize: 13)),
+            title: Text(category, style: TextStyle(fontSize: AppTextStyles.body.fontSize)),
           ),
         ),
         // 지출 수단(=수입원)은 돈이 빠져나가는 곳을 고르는 항목이라 지출에만 필요합니다.
@@ -2094,9 +2078,9 @@ class _ScheduleAddPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 28),
-        FilledButton(
+        AppPrimaryButton(
           onPressed: onSubmit,
-          child: const Text('일정 추가'),
+          label: '일정 추가',
         ),
       ],
     );
@@ -2164,7 +2148,7 @@ class _FieldLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }

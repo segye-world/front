@@ -61,12 +61,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return AuthLayout(
-      leading: IconButton(
-        onPressed: () => Navigator.of(context).maybePop(),
-        icon: const Icon(Icons.chevron_left, size: 24),
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -62,14 +62,14 @@ class _MyNotificationSettingScreenState
                     borderRadius: BorderRadius.circular(AppRadius.button),
                     border: Border.all(color: AppColors.warningBorder),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.info_outline, size: 20, color: AppColors.warningIcon),
-                      SizedBox(width: 8),
+                      const Icon(Icons.info_outline, size: 20, color: AppColors.warningIcon),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '알림 기능은 준비 중입니다. 설정은 저장되지 않아요.',
-                          style: TextStyle(fontSize: 11, color: AppColors.warningText),
+                          style: TextStyle(fontSize: AppTextStyles.small.fontSize, color: AppColors.warningText),
                         ),
                       ),
                     ],
@@ -117,9 +117,7 @@ class _NotificationTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(title, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 3),
                 Text(subtitle, style: AppTextStyles.caption),
               ],

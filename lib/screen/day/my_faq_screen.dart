@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
+import '../../theme/app_text_styles.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -101,12 +102,12 @@ class _FaqTileState extends State<_FaqTile> {
                   Expanded(
                     child: Text(
                       widget.item.question,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
                   Icon(
                     _expanded ? Icons.expand_less : Icons.expand_more,
-                    color: Colors.black38,
+                    color: AppColors.textTertiary,
                     size: 20,
                   ),
                 ],
@@ -118,7 +119,7 @@ class _FaqTileState extends State<_FaqTile> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: Text(
                 widget.item.answer,
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.6),
+                style: AppTextStyles.caption.copyWith(height: 1.6),
               ),
             ),
         ],

@@ -4,6 +4,8 @@ import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
 import '../../services/token_storage.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_dialog.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -45,19 +47,12 @@ class _MyPageScreenState extends State<MyPageScreen> {
   Future<void> _deleteAccount(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('회원 탈퇴'),
+      builder: (ctx) => AppDialog(
+        title: '회원 탈퇴',
         content: const Text('정말 탈퇴하시겠습니까?\n모든 데이터가 삭제됩니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('탈퇴', style: TextStyle(color: AppColors.expenseAccent)),
-          ),
-        ],
+        confirmLabel: '탈퇴',
+        confirmColor: AppColors.expenseAccent,
+        onConfirm: () => Navigator.pop(ctx, true),
       ),
     );
     if (confirmed != true || !context.mounted) return;
@@ -103,7 +98,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                           alignment: Alignment.center,
                           child: Text(
                             displayId.isEmpty ? '?' : displayId.substring(0, 1),
-                            style: const TextStyle(color: Colors.white, fontSize: 18),
+                            style: AppTextStyles.emphasis.copyWith(color: Colors.white),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -120,9 +115,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
                             const SizedBox(height: 4),
                             Text(
                               displayEmail,
-                              style: const TextStyle(
+                              style: AppTextStyles.caption.copyWith(
                                 color: AppColors.textTertiary,
-                                fontSize: 12,
                               ),
                             ),
                           ],

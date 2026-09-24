@@ -10,8 +10,11 @@ import '../../services/budget_api.dart';
 import '../../services/category_api.dart';
 import '../../services/finance_settings_api.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_dialog.dart';
+import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -266,7 +269,7 @@ class _TopActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       onTap: onTap,
       child: Container(
         height: 44,
@@ -276,7 +279,7 @@ class _TopActionButton extends StatelessWidget {
           border: Border.all(color: _CashDetailScreenState._lineNavy, width: 1),
           borderRadius: BorderRadius.circular(AppRadius.card),
         ),
-        child: Text(label, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w700)),
+        child: Text(label, style: AppTextStyles.body.copyWith(color: textColor, fontWeight: FontWeight.w700)),
       ),
     );
   }
@@ -310,9 +313,9 @@ class _MonthlySummaryCard extends StatelessWidget {
         children: [
           Icon(chartIcon, size: 18, color: accentColor),
           const Spacer(),
-          Text(title, style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(title, style: AppTextStyles.small.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(_formatWon(amount), style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 14, fontWeight: FontWeight.w700)),
+          Text(_formatWon(amount), style: AppTextStyles.subtitle.copyWith(color: _CashDetailScreenState._lineNavy)),
         ],
       ),
     );
@@ -355,18 +358,18 @@ class _CategoryExpenseChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
-            Icon(Icons.credit_card, size: 16, color: _CashDetailScreenState._lineNavy),
-            SizedBox(width: 6),
-            Text('카테고리별 지출', style: TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w700)),
+            const Icon(Icons.credit_card, size: 16, color: _CashDetailScreenState._lineNavy),
+            const SizedBox(width: 6),
+            Text('카테고리별 지출', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
           ],
         ),
         const SizedBox(height: 20),
         if (entries.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: Text('이번 달 지출 내역이 없어요.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))),
+            child: Center(child: Text('이번 달 지출 내역이 없어요.', style: AppTextStyles.caption)),
           )
         else
           Row(
@@ -427,10 +430,10 @@ class _CategoryPieChart extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('합계', style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                  Text('합계', style: AppTextStyles.tiny.copyWith(color: AppColors.textTertiary)),
                   Text(
                     _formatWon(total),
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
+                    style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -499,13 +502,13 @@ class _CategoryLegendRow extends StatelessWidget {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 11, fontWeight: FontWeight.w700),
+            style: AppTextStyles.small.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700),
           ),
         ),
         const SizedBox(width: 6),
-        Text('$percent%', style: const TextStyle(color: AppColors.textTertiary, fontSize: 10)),
+        Text('$percent%', style: AppTextStyles.tiny.copyWith(color: AppColors.textTertiary)),
         const SizedBox(width: 6),
-        Text(_formatWon(amount), style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 10, fontWeight: FontWeight.w600)),
+        Text(_formatWon(amount), style: AppTextStyles.tiny.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -525,13 +528,13 @@ class _RecentRecords extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('최근 거래', style: TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w700)),
+            Text('최근 거래', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
             InkWell(onTap: onViewAll, child: const Text('전체 보기', style: AppTextStyles.label)),
           ],
         ),
         const SizedBox(height: 12),
         if (records.isEmpty)
-          const Expanded(child: Center(child: Text('최근 거래가 없어요.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))))
+          Expanded(child: Center(child: Text('최근 거래가 없어요.', style: AppTextStyles.caption)))
         else
           ...records.map((record) => _RecentRecordTile(record: record)),
       ],
@@ -557,17 +560,16 @@ class _RecentRecordTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(record.categoryName, style: const TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w700)),
+                Text(record.categoryName, style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text(isIncome ? '수입' : '지출', style: const TextStyle(color: AppColors.textTertiary, fontSize: 10)),
+                Text(isIncome ? '수입' : '지출', style: AppTextStyles.tiny.copyWith(color: AppColors.textTertiary)),
               ],
             ),
           ),
           Text(
             amountText,
-            style: TextStyle(
+            style: AppTextStyles.small.copyWith(
               color: isIncome ? AppColors.income : AppColors.expense,
-              fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -598,11 +600,11 @@ class _BudgetGoalSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.flag_outlined, size: 16, color: _CashDetailScreenState._lineNavy),
-                SizedBox(width: 6),
-                Text('이번 달 지출 목표', style: TextStyle(color: _CashDetailScreenState._lineNavy, fontSize: 12, fontWeight: FontWeight.w700)),
+                const Icon(Icons.flag_outlined, size: 16, color: _CashDetailScreenState._lineNavy),
+                const SizedBox(width: 6),
+                Text('이번 달 지출 목표', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
               ],
             ),
             InkWell(
@@ -615,7 +617,7 @@ class _BudgetGoalSection extends StatelessWidget {
         if (limit == null)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 4),
-            child: Text('이번 달 지출 목표를 설정해 보세요.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            child: Text('이번 달 지출 목표를 설정해 보세요.', style: AppTextStyles.caption),
           )
         else ...[
           Builder(builder: (context) {
@@ -631,12 +633,11 @@ class _BudgetGoalSection extends StatelessWidget {
                   children: [
                     Text(
                       '${_formatWon(monthExpense)} / ${_formatWon(limit)}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
+                      style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
                     ),
                     Text(
                       isOverBudget ? '${_formatWon(-remaining)} 초과' : '${_formatWon(remaining)} 남음',
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: AppTextStyles.small.copyWith(
                         fontWeight: FontWeight.w700,
                         color: isOverBudget ? _CashDetailScreenState._red : _CashDetailScreenState._green,
                       ),
@@ -718,30 +719,25 @@ class _BudgetGoalDialogState extends State<_BudgetGoalDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('이번 달 지출 목표'),
+    return AppDialog(
+      title: '이번 달 지출 목표',
+      confirmLabel: '저장',
       content: TextField(
         controller: _controller,
         autofocus: true,
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(suffixText: '원', hintText: '목표 금액을 입력하세요'),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        FilledButton(
-          onPressed: () {
-            final amount = int.tryParse(_controller.text.trim());
-            if (amount == null || amount <= 0) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('올바른 금액을 입력해 주세요.')),
-              );
-              return;
-            }
-            Navigator.pop(context, amount);
-          },
-          child: const Text('저장'),
-        ),
-      ],
+      onConfirm: () {
+        final amount = int.tryParse(_controller.text.trim());
+        if (amount == null || amount <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('올바른 금액을 입력해 주세요.')),
+          );
+          return;
+        }
+        Navigator.pop(context, amount);
+      },
     );
   }
 }
@@ -890,7 +886,9 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                 ),
               ],
               const SizedBox(height: 22),
-              SizedBox(width: double.infinity, height: 48, child: FilledButton(
+              AppPrimaryButton(
+                backgroundColor: activeColor,
+                label: '기록 저장하기',
                 onPressed: () async {
                   final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
                   if (amount <= 0) {
@@ -913,9 +911,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                     transactionTime,
                   );
                 },
-                style: FilledButton.styleFrom(backgroundColor: activeColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button))),
-                child: const Text('기록 저장하기'),
-              )),
+              ),
             ]),
           ),
         ]),
@@ -930,7 +926,7 @@ class _DialogLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
-    child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+    child: Text(text, style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600)),
   );
 }
 
@@ -962,7 +958,7 @@ class _PickerField extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+              style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
         ]),
@@ -999,13 +995,13 @@ class _FormDropdown<T> extends StatelessWidget {
       child: DropdownButtonFormField<T>(
         value: value,
         isExpanded: true,
-        icon: const Icon(Icons.expand_more, color: AppColors.textTertiary),
+        icon: const Icon(Icons.expand_more, size: AppIconSize.inline, color: AppColors.textTertiary),
         decoration: InputDecoration(
           border: InputBorder.none,
           isDense: true,
           prefixIcon: Icon(icon, size: 18, color: AppColors.navyDark),
         ),
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+        style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
         items: items
             .map((item) => DropdownMenuItem(value: item, child: Text(labelOf(item))))
             .toList(),
@@ -1027,10 +1023,10 @@ class _AmountField extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
     decoration: BoxDecoration(color: AppColors.inputFill, borderRadius: BorderRadius.circular(AppRadius.card), border: Border.all(color: AppColors.inputBorder)),
     child: Row(children: [
-      Text(isExpense ? '−' : '+', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color)),
+      Text(isExpense ? '−' : '+', style: AppTextStyles.amount.copyWith(color: color)),
       const SizedBox(width: 4),
-      Expanded(child: TextField(controller: controller, keyboardType: TextInputType.number, textAlign: TextAlign.right, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700), decoration: const InputDecoration(border: InputBorder.none, hintText: '0', hintStyle: TextStyle(fontSize: 22, color: AppColors.textTertiary)))),
-      const Text('원', style: TextStyle(fontSize: 14, color: AppColors.textTertiary)),
+      Expanded(child: TextField(controller: controller, keyboardType: TextInputType.number, textAlign: TextAlign.right, style: AppTextStyles.amount, decoration: InputDecoration(border: InputBorder.none, hintText: '0', hintStyle: TextStyle(fontSize: AppTextStyles.amount.fontSize, color: AppColors.textTertiary)))),
+      Text('원', style: TextStyle(fontSize: AppTextStyles.subtitle.fontSize, color: AppColors.textTertiary)),
     ]),
   );
 }
@@ -1057,8 +1053,7 @@ class _TypeTab extends StatelessWidget {
           child: Center(
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: 13,
+              style: AppTextStyles.body.copyWith(
                 fontWeight: FontWeight.w600,
                 color: isActive ? activeColor : AppColors.textTertiary,
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../routes/routes.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icon_sizes.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/template/app_top_bar.dart';
@@ -38,8 +39,8 @@ class _MainScreenState extends State<MainScreen> {
       }),
       dayForegroundColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return Colors.white;
-        if (states.contains(WidgetState.disabled)) return Colors.black26;
-        return Colors.black87;
+        if (states.contains(WidgetState.disabled)) return AppColors.textTertiary;
+        return AppColors.textPrimary;
       }),
 
       // ✅ 오늘 날짜: 핑크 테두리 + 글자색
@@ -50,9 +51,10 @@ class _MainScreenState extends State<MainScreen> {
       }),
 
       // ✅ 요일/일자/헤더 스타일(선택 색 가시성에 도움)
-      weekdayStyle: const TextStyle(fontSize: 11, color: Colors.black54),
-      dayStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-      headerForegroundColor: Colors.black87,
+      weekdayStyle: AppTextStyles.small.copyWith(color: AppColors.textSecondary),
+      // dayForegroundColor가 색을 따로 관리하므로 크기만 가져다 씁니다.
+      dayStyle: TextStyle(fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w500),
+      headerForegroundColor: AppColors.textPrimary,
     );
   }
 
@@ -62,7 +64,7 @@ class _MainScreenState extends State<MainScreen> {
       colorScheme: Theme.of(context).colorScheme.copyWith(
         primary: _primaryPink,
         onPrimary: Colors.white,
-        onSurface: Colors.black87,
+        onSurface: AppColors.textPrimary,
       ),
       datePickerTheme: _buildDatePickerTheme(),
     );
@@ -112,22 +114,19 @@ class _MainScreenState extends State<MainScreen> {
                       children: [
                         Text(
                           _formatDate(_selectedDate),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.w600),
                         ),
                         Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.chevron_right, size: 18),
+                              icon: const Icon(Icons.chevron_right, size: AppIconSize.inline),
                               onPressed: () {
                                 Navigator.of(
                                   context,
                                 ).pushNamed(Routes.dayDetail,arguments: _selectedDate,);
                               },
                             ),
-                            const Icon(Icons.notifications_none, size: 18),
+                            const Icon(Icons.notifications_none, size: AppIconSize.inline),
                           ],
                         ),
                       ],
@@ -161,9 +160,9 @@ class _MainScreenState extends State<MainScreen> {
         return _todoItems.isEmpty ? [const _EmptyTabMessage('등록된 할 일이 없어요.')] : [..._todoItems.map((item) => _TodoItemTile(item: item))];
       case _MainTab.consumption:
         return [
-          const Text(
+          Text(
             '오늘의 소비',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           if (_records.isEmpty) const _EmptyTabMessage('등록된 소비 내역이 없어요.') else ..._records.map((record) => _AccountRecordTile(record: record)),
@@ -244,8 +243,8 @@ class _TabChip extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13,
-            color: isActive ? Colors.black87 : Colors.black45,
+            fontSize: AppTextStyles.body.fontSize,
+            color: isActive ? AppColors.textPrimary : AppColors.textTertiary,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
@@ -260,7 +259,7 @@ class _EmptyTabMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 20),
-    child: Center(child: Text(text, style: const TextStyle(fontSize: 12, color: Colors.black45))),
+    child: Center(child: Text(text, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary))),
   );
 }
 
@@ -275,7 +274,7 @@ class _ScheduleCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: item.color,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -284,13 +283,13 @@ class _ScheduleCard extends StatelessWidget {
             item.label,
             style: TextStyle(
               color: item.textColor,
-              fontSize: 12,
+              fontSize: AppTextStyles.caption.fontSize,
               fontWeight: FontWeight.w600,
             ),
           ),
           Text(
             item.timeRange,
-            style: TextStyle(color: item.textColor, fontSize: 11),
+            style: TextStyle(color: item.textColor, fontSize: AppTextStyles.small.fontSize),
           ),
         ],
       ),
@@ -313,7 +312,7 @@ class _AccountRecordTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.inputFill,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -323,22 +322,23 @@ class _AccountRecordTile extends StatelessWidget {
             children: [
               Text(
                 record.title,
-                style: const TextStyle(
-                  fontSize: 12,
+                style: TextStyle(
+                  fontSize: AppTextStyles.caption.fontSize,
                   fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 record.category,
-                style: const TextStyle(fontSize: 10, color: Colors.black54),
+                style: AppTextStyles.tiny.copyWith(color: AppColors.textSecondary),
               ),
             ],
           ),
           Text(
             amountText,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: AppTextStyles.caption.fontSize,
               fontWeight: FontWeight.w600,
               color: record.amount >= 0
                   ? AppColors.income
@@ -362,7 +362,7 @@ class _TodoItemTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.primaryPink.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: Row(
         children: [
@@ -370,7 +370,7 @@ class _TodoItemTile extends StatelessWidget {
             width: 14,
             height: 14,
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.black45, width: 1),
+              border: Border.all(color: AppColors.textTertiary, width: 1),
               borderRadius: BorderRadius.circular(3),
             ),
           ),
@@ -378,7 +378,7 @@ class _TodoItemTile extends StatelessWidget {
           Expanded(
             child: Text(
               item.label,
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
+              style: AppTextStyles.caption.copyWith(color: AppColors.textPrimary),
             ),
           ),
         ],
@@ -399,7 +399,7 @@ class _ScheduleItem {
   });
 
   Color get textColor =>
-      color.computeLuminance() < 0.5 ? Colors.white : Colors.black87;
+      color.computeLuminance() < 0.5 ? Colors.white : AppColors.textPrimary;
 }
 
 class _AccountRecord {

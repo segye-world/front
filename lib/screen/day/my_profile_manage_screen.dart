@@ -120,7 +120,7 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
                         alignment: Alignment.center,
                         child: Text(
                           _email.isNotEmpty ? _email.substring(0, 1).toUpperCase() : '-',
-                          style: const TextStyle(color: Colors.white, fontSize: 18),
+                          style: AppTextStyles.emphasis.copyWith(color: Colors.white),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -152,7 +152,7 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
                   const SizedBox(height: 10),
                   Text(
                     _errorMessage!,
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                    style: AppTextStyles.caption.copyWith(color: AppColors.expenseAccent),
                   ),
                 ],
                 const SizedBox(height: 20),
@@ -182,16 +182,14 @@ class _PwField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+        Text(label, style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           obscureText: true,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.black26),
+            hintStyle: const TextStyle(color: AppColors.textTertiary),
             filled: true,
             fillColor: AppColors.inputFill,
             border: OutlineInputBorder(
