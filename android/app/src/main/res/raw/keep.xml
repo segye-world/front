@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 알림 아이콘은 Dart 에서 이름 문자열로만 참조되므로 릴리즈 빌드의 리소스 축소에서 지워지지 않게 남깁니다. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_notify" />
