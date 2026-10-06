@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
 import '../../api/api_error.dart';
+import '../../services/notification_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/template/auth_layout.dart';
@@ -44,6 +47,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await _authApi.login(email: email, password: password);
+      // 권한 요청 다이얼로그가 다음 화면 위에 뜨도록 기다리지 않습니다.
+      unawaited(NotificationService.instance.onLogin());
       if (!mounted) return;
       // 로그인 후 홈은 오늘 날짜의 일정 상세 화면입니다.
       Navigator.of(context).pushReplacementNamed(

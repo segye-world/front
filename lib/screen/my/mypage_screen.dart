@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
+import '../../services/notification_service.dart';
 import '../../services/token_storage.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
@@ -39,6 +40,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Future<void> _logout(BuildContext context) async {
+    await NotificationService.instance.clear();
     await TokenStorage.clear();
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
@@ -58,6 +60,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     if (confirmed != true || !context.mounted) return;
     try {
       await _authApi.deleteAccount();
+      await NotificationService.instance.clear();
       await TokenStorage.clear();
       if (!context.mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
