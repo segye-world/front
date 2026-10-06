@@ -34,6 +34,16 @@ class NotificationSettings {
         dailyWrapUp: dailyWrapUp ?? this.dailyWrapUp,
       );
 
+  @override
+  bool operator ==(Object other) =>
+      other is NotificationSettings &&
+      other.scheduleStart == scheduleStart &&
+      other.scheduleEnd == scheduleEnd &&
+      other.dailyWrapUp == dailyWrapUp;
+
+  @override
+  int get hashCode => Object.hash(scheduleStart, scheduleEnd, dailyWrapUp);
+
   static Future<NotificationSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
     const defaults = NotificationSettings();

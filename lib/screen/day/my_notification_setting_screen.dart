@@ -5,6 +5,7 @@ import '../../services/notification_settings.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -17,10 +18,14 @@ class MyNotificationSettingScreen extends StatefulWidget {
 }
 
 class _MyNotificationSettingScreenState
-    extends State<MyNotificationSettingScreen> with WidgetsBindingObserver {
+    extends State<MyNotificationSettingScreen>
+    with WidgetsBindingObserver {
   final _service = NotificationService.instance;
-  NotificationSettings? _settings;
+  // 저장된 값과 화면에서 바꾸는 중인 값. 둘이 다를 때만 저장 버튼이 켜집니다.
+  NotificationSettings? _saved;
+  NotificationSettings? _draft;
   bool _permitted = true;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -46,7 +51,8 @@ class _MyNotificationSettingScreenState
     final permitted = await _service.isPermitted();
     if (!mounted) return;
     setState(() {
-      _settings = settings;
+      _saved = settings;
+      _draft = settings;
       _permitted = permitted;
     });
   }
@@ -56,7 +62,11 @@ class _MyNotificationSettingScreenState
     if (mounted) setState(() => _permitted = permitted);
   }
 
-  Future<void> _update(NotificationSettings next, {required bool turnedOn}) async {
+  Future<void> _toggle(
+    NotificationSettings next, {
+    required bool turnedOn,
+  }) async {
+    // 켜려는데 권한이 없으면 먼저 묻고, 거절하면 스위치는 꺼진 채로 두고 설정 앱으로 안내합니다.
     if (turnedOn && !_permitted) {
       final granted = await _service.requestPermission();
       if (!mounted) return;
@@ -65,76 +75,109 @@ class _MyNotificationSettingScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('기기 설정에서 알림을 허용해 주세요.'),
-            action: SnackBarAction(label: '설정 열기', onPressed: _service.openSystemSettings),
+            action: SnackBarAction(
+              label: '설정 열기',
+              onPressed: _service.openSystemSettings,
+            ),
           ),
         );
         return;
       }
     }
-    setState(() => _settings = next);
-    await next.save();
+    setState(() => _draft = next);
+  }
+
+  Future<void> _save() async {
+    final draft = _draft!;
+    setState(() => _saving = true);
+    await draft.save();
     await _service.sync();
+    if (!mounted) return;
+    setState(() {
+      _saved = draft;
+      _saving = false;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('알림 설정을 저장했어요.')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final settings = _settings;
+    final settings = _draft;
+    final dirty = settings != null && settings != _saved;
     return BaseScaffold(
       title: '알림 설정',
       backgroundColor: Colors.white,
       body: settings == null
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
+          : Column(
               children: [
-                if (!_service.isSupported)
-                  const _NoticeBox(message: '이 기기에서는 알림을 지원하지 않아요.')
-                else if (!_permitted)
-                  _NoticeBox(
-                    message: '기기 알림이 꺼져 있어 알림을 받을 수 없어요.',
-                    actionLabel: '설정 열기',
-                    onAction: _service.openSystemSettings,
+                Expanded(child: _buildList(settings)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: AppPrimaryButton(
+                    label: '저장',
+                    onPressed: dirty && !_saving ? _save : null,
                   ),
-                if (!_service.isSupported || !_permitted) const SizedBox(height: 16),
-                _NotificationTile(
-                  icon: Icons.calendar_today_outlined,
-                  title: '일정 시작 알림',
-                  subtitle: '일정 시작 30분 전에 그 일정의 할 일을 알려드려요',
-                  value: settings.scheduleStart,
-                  onChanged: (v) => _update(settings.copyWith(scheduleStart: v), turnedOn: v),
-                ),
-                const SizedBox(height: 8),
-                _NotificationTile(
-                  icon: Icons.timer_outlined,
-                  title: '일정 종료 알림',
-                  subtitle: '일정 끝나기 10분 전, 남은 할 일이 있으면 알려드려요',
-                  value: settings.scheduleEnd,
-                  onChanged: (v) => _update(settings.copyWith(scheduleEnd: v), turnedOn: v),
-                ),
-                const SizedBox(height: 8),
-                _NotificationTile(
-                  icon: Icons.nightlight_outlined,
-                  title: '하루 마무리 알림',
-                  subtitle: '밤 10시에 오늘 못 끝낸 할 일이 있으면 알려드려요',
-                  value: settings.dailyWrapUp,
-                  onChanged: (v) => _update(settings.copyWith(dailyWrapUp: v), turnedOn: v),
-                ),
-                const SizedBox(height: 8),
-                const _NotificationTile(
-                  icon: Icons.bar_chart_outlined,
-                  title: '주간 소비 리포트',
-                  subtitle: '준비 중인 기능이에요',
-                  value: false,
-                  onChanged: null,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '할 일이 없는 일정은 알림을 보내지 않아요. 절전 상태에서는 몇 분 늦게 도착할 수 있어요.',
-                  style: AppTextStyles.caption,
                 ),
               ],
             ),
-      bottomNavigationBar: const AppBottomNavBar(currentItem: AppNavItem.mypage),
+      bottomNavigationBar: const AppBottomNavBar(
+        currentItem: AppNavItem.mypage,
+      ),
+    );
+  }
+
+  Widget _buildList(NotificationSettings settings) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (!_service.isSupported)
+          const _NoticeBox(message: '이 기기에서는 알림을 지원하지 않아요.')
+        else if (!_permitted)
+          _NoticeBox(
+            message: '기기 알림이 꺼져 있어 알림을 받을 수 없어요.',
+            actionLabel: '설정 열기',
+            onAction: _service.openSystemSettings,
+          ),
+        if (!_service.isSupported || !_permitted) const SizedBox(height: 16),
+        _NotificationTile(
+          icon: Icons.calendar_today_outlined,
+          title: '일정 시작 알림',
+          subtitle: '일정 시작 30분 전에 할 일을 알려드려요',
+          value: settings.scheduleStart,
+          onChanged: (v) =>
+              _toggle(settings.copyWith(scheduleStart: v), turnedOn: v),
+        ),
+        const SizedBox(height: 8),
+        _NotificationTile(
+          icon: Icons.timer_outlined,
+          title: '일정 종료 알림',
+          subtitle: '일정이 끝나기 10분 전, 남은 할 일을 알려드려요',
+          value: settings.scheduleEnd,
+          onChanged: (v) =>
+              _toggle(settings.copyWith(scheduleEnd: v), turnedOn: v),
+        ),
+        const SizedBox(height: 8),
+        _NotificationTile(
+          icon: Icons.nightlight_outlined,
+          title: '하루 마무리 알림',
+          subtitle: '매일 밤 10시에 못 끝낸 할 일을 알려드려요',
+          value: settings.dailyWrapUp,
+          onChanged: (v) =>
+              _toggle(settings.copyWith(dailyWrapUp: v), turnedOn: v),
+        ),
+        const SizedBox(height: 8),
+        const _NotificationTile(
+          icon: Icons.bar_chart_outlined,
+          title: '주간 소비 리포트',
+          subtitle: '매주 월요일에 지난 주 소비 내역을 요약해드려요',
+          value: false,
+          onChanged: null,
+          badge: '준비 중',
+        ),
+      ],
     );
   }
 }
@@ -158,12 +201,19 @@ class _NoticeBox extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, size: 20, color: AppColors.warningIcon),
+          const Icon(
+            Icons.info_outline,
+            size: 20,
+            color: AppColors.warningIcon,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(fontSize: AppTextStyles.small.fontSize, color: AppColors.warningText),
+              style: TextStyle(
+                fontSize: AppTextStyles.small.fontSize,
+                color: AppColors.warningText,
+              ),
             ),
           ),
           if (actionLabel != null)
@@ -183,12 +233,16 @@ class _NotificationTile extends StatelessWidget {
   /// null 이면 비활성(준비 중) 상태로 그립니다.
   final ValueChanged<bool>? onChanged;
 
+  /// 제목 옆 작은 배지 (예: "준비 중")
+  final String? badge;
+
   const _NotificationTile({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.value,
     required this.onChanged,
+    this.badge,
   });
 
   @override
@@ -211,7 +265,40 @@ class _NotificationTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: AppTextStyles.body.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryPinkTint,
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.button,
+                            ),
+                          ),
+                          child: Text(
+                            badge!,
+                            style: AppTextStyles.tiny.copyWith(
+                              color: AppColors.navyDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   const SizedBox(height: 3),
                   Text(subtitle, style: AppTextStyles.caption),
                 ],
