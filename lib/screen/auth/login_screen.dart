@@ -50,10 +50,10 @@ class _LoginScreenState extends State<LoginScreen> {
       // 권한 요청 다이얼로그가 다음 화면 위에 뜨도록 기다리지 않습니다.
       unawaited(NotificationService.instance.onLogin());
       if (!mounted) return;
-      // 로그인 후 홈은 오늘 날짜의 일정 상세 화면입니다.
+      // 로그인 후 홈은 오늘 날짜의 일정 상세 화면입니다. 로그인 전에 누른 알림이 있으면 그 날짜로 엽니다.
       Navigator.of(context).pushReplacementNamed(
         Routes.dayDetail,
-        arguments: DateTime.now(),
+        arguments: NotificationService.instance.takePendingDate() ?? DateTime.now(),
       );
     } catch (e) {
       setState(() => _errorMessage =

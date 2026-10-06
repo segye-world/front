@@ -7,14 +7,18 @@ class PlannedNotification {
   final String title;
   final String body;
 
+  /// 알림을 누르면 열 일정 상세 날짜(YYYY-MM-DD). 0시 일정의 시작 알림처럼 [at] 과 날짜가 다를 수 있습니다.
+  final String date;
+
   const PlannedNotification({
     required this.at,
     required this.title,
     required this.body,
+    required this.date,
   });
 
   @override
-  String toString() => 'PlannedNotification($at, $title, $body)';
+  String toString() => 'PlannedNotification($at, $date, $title, $body)';
 }
 
 const scheduleStartLead = Duration(minutes: 30);
@@ -46,6 +50,7 @@ List<PlannedNotification> planNotifications({
         at: start.subtract(scheduleStartLead),
         title: '30분 뒤 「${schedule.title}」 시작',
         body: '할 일 ${_summarize(remaining)}',
+        date: schedule.date,
       ));
     }
 
@@ -56,6 +61,7 @@ List<PlannedNotification> planNotifications({
         at: end.subtract(scheduleEndLead),
         title: '「${schedule.title}」 10분 뒤 종료',
         body: '아직 남은 할 일 ${_summarize(remaining)}',
+        date: schedule.date,
       ));
     }
   }
@@ -71,6 +77,7 @@ List<PlannedNotification> planNotifications({
         at: DateTime(day.year, day.month, day.day, dailyWrapUpHour),
         title: '오늘 하루 마무리',
         body: '끝내지 못한 할 일 ${_summarize(remaining)}',
+        date: date,
       ));
     });
   }

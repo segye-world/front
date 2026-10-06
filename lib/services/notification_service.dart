@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../models/schedule_model.dart';
 import '../models/todo_model.dart';
+import '../routes/routes.dart';
 import 'notification_planner.dart';
 import 'notification_settings.dart';
 import 'schedule_api.dart';
@@ -26,7 +28,13 @@ class NotificationService {
   static const _channelDescription = '일정 시작·종료 전과 하루 마무리 때 남은 할 일을 알려드려요';
 
   final _plugin = FlutterLocalNotificationsPlugin();
+
+  /// 알림을 눌렀을 때 화면을 옮기기 위해 MaterialApp 에 연결합니다.
+  final navigatorKey = GlobalKey<NavigatorState>();
   bool _ready = false;
+  bool _loggedIn = false;
+  // 로그인 전(앱이 꺼진 상태 포함)에 누른 알림의 날짜. 로그인 직후 이 날짜로 엽니다.
+  DateTime? _pendingDate;
   Timer? _debounce;
   Future<void>? _running;
   bool _rerun = false;
@@ -36,9 +44,10 @@ class NotificationService {
   /// Android 에서만 동작합니다. 그 밖의 플랫폼과 테스트에서는 모든 호출이 아무 일도 하지 않습니다.
   bool get isSupported => _ready;
 
-  AndroidFlutterLocalNotificationsPlugin? get _android =>
-      _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+  AndroidFlutterLocalNotificationsPlugin? get _android => _plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
 
   Future<void> init() async {
     if (kIsWeb || !Platform.isAndroid) return;
@@ -47,8 +56,14 @@ class NotificationService {
         settings: const InitializationSettings(
           android: AndroidInitializationSettings('ic_stat_notify'),
         ),
+        onDidReceiveNotificationResponse: (response) =>
+            _onTap(response.payload),
       );
       _ready = true;
+      final launch = await _plugin.getNotificationAppLaunchDetails();
+      if (launch?.didNotificationLaunchApp ?? false) {
+        _pendingDate = _parseDate(launch!.notificationResponse?.payload);
+      }
     } catch (e) {
       debugPrint('알림 초기화 실패: $e');
     }
@@ -69,8 +84,35 @@ class NotificationService {
     await _android?.openAppNotificationSettings();
   }
 
+  /// 로그인 후 처음 열 날짜. 로그인 전에 누른 알림이 있으면 그 날짜, 없으면 null 입니다.
+  DateTime? takePendingDate() {
+    final date = _pendingDate;
+    _pendingDate = null;
+    return date;
+  }
+
+  void _onTap(String? payload) {
+    final date = _parseDate(payload);
+    if (date == null) return;
+    final navigator = navigatorKey.currentState;
+    if (!_loggedIn || navigator == null) {
+      _pendingDate = date;
+      return;
+    }
+    // 하단 탭 전환과 같은 방식으로 스택을 비우고 이동합니다.
+    navigator.pushNamedAndRemoveUntil(
+      Routes.dayDetail,
+      (route) => false,
+      arguments: date,
+    );
+  }
+
+  static DateTime? _parseDate(String? payload) =>
+      payload == null ? null : DateTime.tryParse(payload);
+
   /// 로그인 직후 호출합니다. 처음 한 번만 권한을 묻고, 알림을 다시 계산합니다.
   Future<void> onLogin() async {
+    _loggedIn = true;
     if (!_ready) return;
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool(_permissionAskedKey) ?? false)) {
@@ -82,6 +124,7 @@ class NotificationService {
 
   /// 로그아웃·회원 탈퇴 시 예약된 알림을 모두 지웁니다.
   Future<void> clear() async {
+    _loggedIn = false;
     _generation++;
     _debounce?.cancel();
     if (!_ready) return;
@@ -135,6 +178,7 @@ class NotificationService {
           id: i,
           title: n.title,
           body: n.body,
+          payload: n.date,
           // 절대 시각만 넘기면 되므로 기기 시간대 데이터 없이 UTC 로 변환해 넘깁니다.
           scheduledDate: tz.TZDateTime.from(n.at, tz.UTC),
           notificationDetails: _details(n.body),
@@ -154,13 +198,18 @@ class NotificationService {
       _syncDays,
       (i) => _formatDate(DateTime(now.year, now.month, now.day + i)),
     );
-    final perDay = await Future.wait(dates.map((date) async {
-      final results = await Future.wait([
-        ScheduleApi.fetchByDate(date),
-        TodoApi.fetchByDate(date),
-      ]);
-      return (results[0] as List<ScheduleModel>, results[1] as List<TodoModel>);
-    }));
+    final perDay = await Future.wait(
+      dates.map((date) async {
+        final results = await Future.wait([
+          ScheduleApi.fetchByDate(date),
+          TodoApi.fetchByDate(date),
+        ]);
+        return (
+          results[0] as List<ScheduleModel>,
+          results[1] as List<TodoModel>,
+        );
+      }),
+    );
     return (
       [for (final day in perDay) ...day.$1],
       [for (final day in perDay) ...day.$2],
@@ -173,13 +222,13 @@ class NotificationService {
       '${d.day.toString().padLeft(2, '0')}';
 
   static NotificationDetails _details(String body) => NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          channelDescription: _channelDescription,
-          importance: Importance.high,
-          priority: Priority.high,
-          styleInformation: BigTextStyleInformation(body),
-        ),
-      );
+    android: AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+      styleInformation: BigTextStyleInformation(body),
+    ),
+  );
 }

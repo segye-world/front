@@ -87,6 +87,17 @@ void main() {
     expect(result.single.at, DateTime(2026, 10, 6, 23, 50));
   });
 
+  test('0시에 시작하는 일정은 전날 23시 30분에 알리고, 누르면 일정 날짜를 연다', () {
+    final result = plan(
+      [schedule(1, date: '2026-10-07', start: 0, end: 1)],
+      [todo(1, scheduleId: 1, date: '2026-10-07')],
+      settings: const NotificationSettings(scheduleEnd: false, dailyWrapUp: false),
+    );
+
+    expect(result.single.at, DateTime(2026, 10, 6, 23, 30));
+    expect(result.single.date, '2026-10-07');
+  });
+
   test('이미 지난 시각의 알림은 빼고, 꺼진 항목은 만들지 않는다', () {
     final result = plan(
       [schedule(1)],
@@ -109,5 +120,6 @@ void main() {
       DateTime(2026, 10, 6, 22),
       DateTime(2026, 10, 7, 22),
     ]);
+    expect(result.map((n) => n.date), ['2026-10-06', '2026-10-07']);
   });
 }
