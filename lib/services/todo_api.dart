@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'api_client.dart';
 import '../models/todo_model.dart';
+import 'notification_service.dart';
 
 class TodoApi {
   static Future<List<TodoModel>> fetchByDate(String date) async {
@@ -26,6 +27,7 @@ class TodoApi {
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('할 일 생성 실패');
     }
+    NotificationService.instance.requestSync();
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     return TodoModel.fromJson(body['data'] as Map<String, dynamic>);
   }
@@ -36,6 +38,7 @@ class TodoApi {
     if (isDone != null) reqBody['isDone'] = isDone;
     final response = await ApiClient.put('/api/v1/todos/$id', reqBody);
     if (response.statusCode != 200) throw Exception('할 일 수정 실패');
+    NotificationService.instance.requestSync();
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     return TodoModel.fromJson(body['data'] as Map<String, dynamic>);
   }
@@ -45,5 +48,6 @@ class TodoApi {
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('할 일 삭제 실패');
     }
+    NotificationService.instance.requestSync();
   }
 }

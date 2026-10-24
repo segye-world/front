@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'api_client.dart';
 import '../models/schedule_model.dart';
+import 'notification_service.dart';
 
 class ScheduleApi {
   static Future<List<ScheduleModel>> fetchByDate(String date) async {
@@ -30,6 +31,7 @@ class ScheduleApi {
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('일정 생성 실패');
     }
+    NotificationService.instance.requestSync();
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     return ScheduleModel.fromJson(body['data'] as Map<String, dynamic>);
   }
@@ -48,6 +50,7 @@ class ScheduleApi {
       'colorHex': colorHex,
     });
     if (response.statusCode != 200) throw Exception('일정 수정 실패');
+    NotificationService.instance.requestSync();
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     return ScheduleModel.fromJson(body['data'] as Map<String, dynamic>);
   }
@@ -57,5 +60,6 @@ class ScheduleApi {
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('일정 삭제 실패');
     }
+    NotificationService.instance.requestSync();
   }
 }

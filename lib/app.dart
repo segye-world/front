@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'routes/app_router.dart';
 import 'routes/routes.dart';
+import 'services/notification_service.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_radius.dart';
 import 'theme/app_text_styles.dart';
@@ -12,6 +13,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: NotificationService.instance.navigatorKey,
       title: 'Cash Diary',
       initialRoute: Routes.login,
       onGenerateRoute: AppRouter.generateRoute,
