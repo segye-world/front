@@ -5,6 +5,7 @@ import '../../services/account_record_api.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_dialog.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -99,7 +100,11 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
                           )
                         else
                           ...grouped.entries.map(
-                            (entry) => _CategoryGroup(categoryName: entry.key, records: entry.value),
+                            (entry) => _CategoryGroup(
+                              categoryName: entry.key,
+                              records: entry.value,
+                              onDelete: _deleteRecord,
+                            ),
                           ),
                       ],
                     ),
@@ -115,6 +120,31 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
         setState(() => _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + delta));
         _loadData();
       };
+
+  Future<void> _deleteRecord(AccountRecordModel record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AppDialog(
+        title: '내역 삭제',
+        content: Text('"${record.categoryName}" 내역을 삭제할까요?'),
+        confirmLabel: '삭제',
+        confirmColor: AppColors.expenseAccent,
+        onConfirm: () => Navigator.pop(context, true),
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await AccountRecordApi.delete(record.id);
+      if (!mounted) return;
+      setState(() => _records.removeWhere((r) => r.id == record.id));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('내역 삭제에 실패했습니다.')),
+        );
+      }
+    }
+  }
 }
 
 enum _RecordFilter {
@@ -186,8 +216,9 @@ class _FilterTabs extends StatelessWidget {
 class _CategoryGroup extends StatelessWidget {
   final String categoryName;
   final List<AccountRecordModel> records;
+  final void Function(AccountRecordModel) onDelete;
 
-  const _CategoryGroup({required this.categoryName, required this.records});
+  const _CategoryGroup({required this.categoryName, required this.records, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -206,7 +237,7 @@ class _CategoryGroup extends StatelessWidget {
           const SizedBox(height: 10),
           const Divider(height: 1, color: AppColors.cardBorder),
           const SizedBox(height: 10),
-          ...records.map((record) => _RecordRow(record: record)),
+          ...records.map((record) => _RecordRow(record: record, onDelete: () => onDelete(record))),
         ],
       ),
     );
@@ -215,8 +246,9 @@ class _CategoryGroup extends StatelessWidget {
 
 class _RecordRow extends StatelessWidget {
   final AccountRecordModel record;
+  final VoidCallback onDelete;
 
-  const _RecordRow({required this.record});
+  const _RecordRow({required this.record, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -247,6 +279,15 @@ class _RecordRow extends StatelessWidget {
               color: isIncome ? AppColors.income : AppColors.expense,
               fontSize: AppTextStyles.caption.fontSize,
               fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.delete_outline, size: AppIconSize.inline, color: AppColors.textTertiary),
+              onPressed: onDelete,
             ),
           ),
         ],

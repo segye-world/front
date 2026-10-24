@@ -13,6 +13,7 @@ import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_dialog.dart';
 import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
@@ -422,6 +423,31 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     }
   }
 
+  Future<void> _deleteFinanceEntry(AccountRecordModel entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AppDialog(
+        title: '내역 삭제',
+        content: Text('"${entry.categoryName}" 내역을 삭제할까요?'),
+        confirmLabel: '삭제',
+        confirmColor: AppColors.expenseAccent,
+        onConfirm: () => Navigator.pop(context, true),
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await AccountRecordApi.delete(entry.id);
+      if (!mounted) return;
+      setState(() => _financeEntries.removeWhere((e) => e.id == entry.id));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('내역 삭제에 실패했습니다.')),
+        );
+      }
+    }
+  }
+
   Future<void> _addTodoToSection(int sectionId) async {
     final text = _newTodoController.text.trim();
     if (text.isEmpty) return;
@@ -656,6 +682,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       onTodoChanged: _toggleTodo,
       onTodoLabelChanged: _updateTodoLabel,
       onTodoDeleted: _removeTodo,
+      onFinanceDeleted: _deleteFinanceEntry,
       onSectionTodoAdded: _addTodoToSection,
       onSectionEditCanceled: _closeEditMode,
       onSectionEditSaved: _saveSectionEdits,
@@ -1458,6 +1485,7 @@ class _DetailPanel extends StatelessWidget {
   final void Function(int sectionId, int itemId, bool? checked) onTodoChanged;
   final void Function(int sectionId, int itemId, String value) onTodoLabelChanged;
   final void Function(int sectionId, int itemId) onTodoDeleted;
+  final void Function(AccountRecordModel) onFinanceDeleted;
   final ValueChanged<int> onSectionTodoAdded;
   final VoidCallback onSectionEditCanceled;
   final VoidCallback onSectionEditSaved;
@@ -1496,6 +1524,7 @@ class _DetailPanel extends StatelessWidget {
     required this.onTodoChanged,
     required this.onTodoLabelChanged,
     required this.onTodoDeleted,
+    required this.onFinanceDeleted,
     required this.onSectionTodoAdded,
     required this.onSectionEditCanceled,
     required this.onSectionEditSaved,
@@ -1539,7 +1568,7 @@ class _DetailPanel extends StatelessWidget {
                   onSectionEditCanceled: onSectionEditCanceled,
                   onSectionEditSaved: onSectionEditSaved,
                 ),
-              _DetailMode.finance => _FinancePanel(entries: financeEntries),
+              _DetailMode.finance => _FinancePanel(entries: financeEntries, onDelete: onFinanceDeleted),
               _DetailMode.add => _ScheduleAddPanel(
                   palette: palette,
                   selectedColorIndex: selectedColorIndex,
@@ -1814,8 +1843,9 @@ class _TodoRow extends StatelessWidget {
 
 class _FinancePanel extends StatelessWidget {
   final List<AccountRecordModel> entries;
+  final void Function(AccountRecordModel) onDelete;
 
-  const _FinancePanel({required this.entries});
+  const _FinancePanel({required this.entries, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -1857,16 +1887,30 @@ class _FinancePanel extends StatelessWidget {
                     entry.categoryType == 'INCOME' ? '수입' : '지출',
                     style: TextStyle(fontSize: AppTextStyles.small.fontSize),
                   ),
-                  trailing: Text(
-                    _formatAmount(
-                      entry.categoryType == 'INCOME' ? entry.amount : -entry.amount,
-                    ),
-                    style: AppTextStyles.caption.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: entry.categoryType == 'INCOME'
-                          ? AppColors.income
-                          : AppColors.expense,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatAmount(
+                          entry.categoryType == 'INCOME' ? entry.amount : -entry.amount,
+                        ),
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: entry.categoryType == 'INCOME'
+                              ? AppColors.income
+                              : AppColors.expense,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.delete_outline, size: AppIconSize.inline, color: AppColors.textTertiary),
+                          onPressed: () => onDelete(entry),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -174,6 +174,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
                           child: _RecentRecords(
                             records: _recentRecords,
                             onViewAll: () => _openAllRecords(context),
+                            onDelete: _deleteRecord,
                           ),
                         ),
                       ],
@@ -188,6 +189,35 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
 
   void _openAllRecords(BuildContext context) {
     Navigator.of(context).pushNamed(Routes.cashRecords).then((_) => _loadData());
+  }
+
+  Future<void> _deleteRecord(AccountRecordModel record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AppDialog(
+        title: '내역 삭제',
+        content: Text('"${record.categoryName}" 내역을 삭제할까요?'),
+        confirmLabel: '삭제',
+        confirmColor: AppColors.expenseAccent,
+        onConfirm: () => Navigator.pop(context, true),
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await AccountRecordApi.delete(record.id);
+      await _loadData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('내역을 삭제했습니다.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('내역 삭제에 실패했습니다.')),
+        );
+      }
+    }
   }
 
   Future<void> _showEditBudgetDialog() async {
@@ -517,8 +547,9 @@ class _CategoryLegendRow extends StatelessWidget {
 class _RecentRecords extends StatelessWidget {
   final List<AccountRecordModel> records;
   final VoidCallback onViewAll;
+  final void Function(AccountRecordModel) onDelete;
 
-  const _RecentRecords({required this.records, required this.onViewAll});
+  const _RecentRecords({required this.records, required this.onViewAll, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -536,7 +567,7 @@ class _RecentRecords extends StatelessWidget {
         if (records.isEmpty)
           Expanded(child: Center(child: Text('최근 거래가 없어요.', style: AppTextStyles.caption)))
         else
-          ...records.map((record) => _RecentRecordTile(record: record)),
+          ...records.map((record) => _RecentRecordTile(record: record, onDelete: () => onDelete(record))),
       ],
     );
   }
@@ -544,8 +575,9 @@ class _RecentRecords extends StatelessWidget {
 
 class _RecentRecordTile extends StatelessWidget {
   final AccountRecordModel record;
+  final VoidCallback onDelete;
 
-  const _RecentRecordTile({required this.record});
+  const _RecentRecordTile({required this.record, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -571,6 +603,15 @@ class _RecentRecordTile extends StatelessWidget {
             style: AppTextStyles.small.copyWith(
               color: isIncome ? AppColors.income : AppColors.expense,
               fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.delete_outline, size: AppIconSize.inline, color: AppColors.textTertiary),
+              onPressed: onDelete,
             ),
           ),
         ],
