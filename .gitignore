@@ -44,3 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 INFORMATION.md
+
+# 로컬 실행용 키·주소. dart_defines.example.json 을 복사해서 씁니다.
+/dart_defines.json
