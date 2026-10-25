@@ -7,6 +7,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/common/app_dialog.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -34,7 +35,15 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
       final categories = await CategoryApi.fetchAll();
       if (!mounted) return;
       setState(() => _categories = categories);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      if (mounted) {
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '카테고리를 불러오지 못했습니다.',
+          stackTrace: stackTrace,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -49,10 +58,13 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
     try {
       await CategoryApi.create(name: result.name, type: result.type);
       await _loadCategories();
-    } catch (_) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('카테고리 추가에 실패했습니다.')),
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '카테고리 추가에 실패했습니다.',
+          stackTrace: stackTrace,
         );
       }
     }
@@ -67,10 +79,13 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
     try {
       await CategoryApi.update(id: cat.id, name: result.name, type: result.type);
       await _loadCategories();
-    } catch (_) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('카테고리 수정에 실패했습니다.')),
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '카테고리 수정에 실패했습니다.',
+          stackTrace: stackTrace,
         );
       }
     }
@@ -91,10 +106,13 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
     try {
       await CategoryApi.delete(id: cat.id);
       await _loadCategories();
-    } catch (_) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('카테고리 삭제에 실패했습니다.')),
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '카테고리 삭제에 실패했습니다.',
+          stackTrace: stackTrace,
         );
       }
     }
@@ -317,9 +335,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
       onConfirm: () {
         final name = _nameCtrl.text.trim();
         if (name.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이름을 입력해 주세요.')),
-          );
+          showAppSnackBar(context, '이름을 입력해 주세요.');
           return;
         }
         Navigator.pop(context, _CategoryFormResult(name: name, type: _type));

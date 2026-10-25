@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../api/auth_api.dart';
-import '../../api/api_error.dart';
 import '../../routes/routes.dart';
 import '../../widgets/common/app_primary_button.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/auth_layout.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -54,19 +54,15 @@ class _SignupScreenState extends State<SignupScreen> {
       if (!mounted) return;
       _showMessage('회원가입이 완료되었습니다. 로그인해주세요.');
       Navigator.of(context).pushReplacementNamed(Routes.login);
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (!mounted) return;
-      _showMessage(apiErrorMessage(e, fallback: '회원가입에 실패했습니다.'));
+      showErrorSnackBar(context, e, fallback: '회원가입에 실패했습니다.', stackTrace: stackTrace);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
+  void _showMessage(String message) => showAppSnackBar(context, message);
 
   @override
   Widget build(BuildContext context) {

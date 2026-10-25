@@ -7,6 +7,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/common/app_primary_button.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -80,9 +81,7 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
       _currentPwCtrl.clear();
       _newPwCtrl.clear();
       _confirmPwCtrl.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('비밀번호가 변경되었습니다.')),
-      );
+      showAppSnackBar(context, '비밀번호가 변경되었습니다.');
     } catch (e) {
       setState(() => _errorMessage = e.toString().replaceFirst('Exception: ', ''));
     } finally {

@@ -7,6 +7,7 @@ import '../../services/token_storage.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/common/app_dialog.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -64,10 +65,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
       await TokenStorage.clear();
       if (!context.mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      showErrorSnackBar(
+        context,
+        e,
+        fallback: '회원 탈퇴에 실패했습니다.',
+        stackTrace: stackTrace,
       );
     }
   }

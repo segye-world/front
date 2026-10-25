@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/common/app_dialog.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -55,8 +56,16 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
       final records = await AccountRecordApi.fetchByDateRange(from, to);
       if (!mounted) return;
       setState(() => _records = records);
-    } catch (_) {
-      if (mounted) setState(() => _records = []);
+    } catch (e, stackTrace) {
+      if (mounted) {
+        setState(() => _records = []);
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '내역을 불러오지 못했습니다.',
+          stackTrace: stackTrace,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -109,10 +118,13 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
         _records.removeWhere((r) => idsToDelete.contains(r.id));
         _selectedIds.clear();
       });
-    } catch (_) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('내역 삭제에 실패했습니다.')),
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '내역 삭제에 실패했습니다.',
+          stackTrace: stackTrace,
         );
       }
     }

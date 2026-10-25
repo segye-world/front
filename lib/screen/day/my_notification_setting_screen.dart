@@ -6,6 +6,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/common/app_primary_button.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/base_scaffold.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -72,13 +73,12 @@ class _MyNotificationSettingScreenState
       if (!mounted) return;
       setState(() => _permitted = granted);
       if (!granted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('기기 설정에서 알림을 허용해 주세요.'),
-            action: SnackBarAction(
-              label: '설정 열기',
-              onPressed: _service.openSystemSettings,
-            ),
+        showAppSnackBar(
+          context,
+          '기기 설정에서 알림을 허용해 주세요.',
+          action: SnackBarAction(
+            label: '설정 열기',
+            onPressed: _service.openSystemSettings,
           ),
         );
         return;
@@ -97,9 +97,7 @@ class _MyNotificationSettingScreenState
       _saved = draft;
       _saving = false;
     });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('알림 설정을 저장했어요.')));
+    showAppSnackBar(context, '알림 설정을 저장했어요.');
   }
 
   @override
