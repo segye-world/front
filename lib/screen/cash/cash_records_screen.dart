@@ -223,43 +223,141 @@ class _RecordRow extends StatelessWidget {
     final isIncome = record.categoryType == 'INCOME';
     final amountText = isIncome ? '+${_formatNumber(record.amount)}' : '-${_formatNumber(record.amount)}';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  record.categoryName,
-                  style: TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(_formatDateTime(record.transactionTime), style: AppTextStyles.caption),
-                if (record.memo != null && record.memo!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+    return InkWell(
+      onTap: () => _showRecordDetail(context, record),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    record.memo!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                    record.categoryName,
+                    style: TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(_formatDateTime(record.transactionTime), style: AppTextStyles.caption),
+                  if (record.memo != null && record.memo!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      record.memo!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Text(
+              amountText,
+              style: TextStyle(
+                color: isIncome ? AppColors.income : AppColors.expense,
+                fontSize: AppTextStyles.caption.fontSize,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 거래 행을 탭하면 메모와 날짜·시간을 포함한 상세 정보를 바텀시트로 보여줍니다.
+void _showRecordDetail(BuildContext context, AccountRecordModel record) {
+  final isIncome = record.categoryType == 'INCOME';
+  final amountColor = isIncome ? AppColors.income : AppColors.expense;
+  final amountText = isIncome ? '+${_formatNumber(record.amount)}원' : '-${_formatNumber(record.amount)}원';
+
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      return SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(_categoryIcon(record.categoryName), size: 18, color: AppColors.textPrimary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      record.categoryName,
+                      style: AppTextStyles.title.copyWith(color: _CashRecordsScreenState._lineNavy),
+                    ),
+                  ),
+                  Text(
+                    amountText,
+                    style: AppTextStyles.body.copyWith(color: amountColor, fontWeight: FontWeight.w700),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              _DetailRow(label: '구분', value: isIncome ? '수입' : '지출'),
+              const SizedBox(height: 10),
+              _DetailRow(label: '날짜', value: _formatFullDate(record.transactionTime)),
+              const SizedBox(height: 10),
+              _DetailRow(label: '시간', value: _formatTime(record.transactionTime)),
+              if (record.sourceCategoryName != null && record.sourceCategoryName!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _DetailRow(label: '지출 수단', value: record.sourceCategoryName!),
               ],
-            ),
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: AppColors.cardBorder),
+              const SizedBox(height: 14),
+              Text('메모', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashRecordsScreenState._lineNavy)),
+              const SizedBox(height: 6),
+              Text(
+                record.memo != null && record.memo!.isNotEmpty ? record.memo! : '메모가 없습니다.',
+                style: AppTextStyles.body.copyWith(
+                  color: record.memo != null && record.memo!.isNotEmpty
+                      ? AppColors.textPrimary
+                      : AppColors.textTertiary,
+                ),
+              ),
+            ],
           ),
-          Text(
-            amountText,
-            style: TextStyle(
-              color: isIncome ? AppColors.income : AppColors.expense,
-              fontSize: AppTextStyles.caption.fontSize,
-              fontWeight: FontWeight.w700,
-            ),
+        ),
+      );
+    },
+  );
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 64,
+          child: Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: AppTextStyles.body.copyWith(color: _CashRecordsScreenState._lineNavy, fontWeight: FontWeight.w600),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -303,6 +401,19 @@ String _formatDateTime(DateTime dateTime) {
   final hour = dateTime.hour.toString().padLeft(2, '0');
   final minute = dateTime.minute.toString().padLeft(2, '0');
   return '${dateTime.month}/${dateTime.day} $hour:$minute';
+}
+
+const List<String> _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+
+String _formatFullDate(DateTime dateTime) {
+  final weekday = _weekdayLabels[dateTime.weekday - 1];
+  return '${dateTime.year}년 ${dateTime.month}월 ${dateTime.day}일 ($weekday)';
+}
+
+String _formatTime(DateTime dateTime) {
+  final hour = dateTime.hour.toString().padLeft(2, '0');
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
 }
 
 String _formatNumber(int value) {
