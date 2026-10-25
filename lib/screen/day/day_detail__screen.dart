@@ -41,6 +41,12 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   late final List<_ScheduleBlock> _scheduleBlocks;
   late final List<_TodoSectionState> _sections;
   late final List<AccountRecordModel> _financeEntries;
+
+  /// 직전에 성공적으로 불러온 일정·할 일 목록.
+  /// 둘 중 한쪽 조회가 실패해도 성공한 쪽만 새로 반영하고, 실패한 쪽은
+  /// 이 값을 그대로 써서 화면에 이미 떠 있던 내용이 사라지지 않게 합니다.
+  List<ScheduleModel> _lastLoadedSchedules = const [];
+  List<TodoModel> _lastLoadedTodos = const [];
   List<CategoryModel> _categories = const [];
   // 지출 수단(=수입원)은 별도 목록이 아니라 수입원 카테고리를 그대로 가리킨다.
   int? _selectedSourceCategoryId;
@@ -205,11 +211,22 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     );
 
     if (picked != null && mounted) {
-      setState(() => _selectedDate = picked);
-      // 바뀐 날짜의 일정·할 일·소비를 다시 조회합니다.
-      _loadFinanceData();
-      _loadScheduleAndTodos();
+      _changeDate(picked);
     }
+  }
+
+  /// 선택된 날짜를 바꾸고 그 날짜의 일정·할 일·소비를 다시 조회합니다.
+  ///
+  /// 날짜가 바뀌면 직전 날짜에서 불러온 값을 그대로 이어 쓰면 안 되므로,
+  /// 캐시해 둔 마지막 조회 결과도 함께 비웁니다.
+  void _changeDate(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+      _lastLoadedSchedules = const [];
+      _lastLoadedTodos = const [];
+    });
+    _loadFinanceData();
+    _loadScheduleAndTodos();
   }
 
   String get _dateString =>
@@ -246,9 +263,13 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   /// 일정과 할 일을 각각 따로 불러옵니다. 하나를 Future.wait로 묶으면 한쪽이
   /// 실패할 때 다른 쪽까지 통째로 표시되지 않으므로, 둘을 분리해 한쪽이
   /// 실패해도 나머지는 그대로 화면에 보이게 합니다.
+  ///
+  /// 조회가 실패한 쪽은 빈 목록이 아니라 직전에 불러온 값을 그대로 씁니다.
+  /// 빈 목록으로 덮어쓰면, 방금 추가한 일정이 떠 있는 상태에서 새로고침했을 때
+  /// 일시적인 오류만으로도 화면에서 일정이 사라져 버립니다.
   Future<void> _loadScheduleAndTodos() async {
-    List<ScheduleModel> schedules = const [];
-    List<TodoModel> todos = const [];
+    List<ScheduleModel> schedules = _lastLoadedSchedules;
+    List<TodoModel> todos = _lastLoadedTodos;
     Object? firstError;
     StackTrace? firstStackTrace;
 
@@ -267,6 +288,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     }
 
     if (!mounted) return;
+
+    _lastLoadedSchedules = schedules;
+    _lastLoadedTodos = todos;
 
     final blocks = schedules.map((schedule) => _ScheduleBlock(
       id: schedule.id,
@@ -777,7 +801,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       bottomNavigationBar: AppBottomNavBar(
         currentItem: AppNavItem.home,
         // 이 화면이 곧 홈이므로, HOME 탭을 다시 누르면 오늘 날짜로 되돌립니다.
-        onReselected: () => setState(() => _selectedDate = DateTime.now()),
+        onReselected: () => _changeDate(DateTime.now()),
       ),
     );
   }
