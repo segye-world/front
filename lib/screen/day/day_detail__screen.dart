@@ -13,6 +13,7 @@ import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_dialog.dart';
 import '../../widgets/common/app_primary_button.dart';
 import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/app_top_bar.dart';
@@ -481,6 +482,45 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     }
   }
 
+  /// 일정 삭제 확인 다이얼로그를 띄우고, 확인하면 서버에서 일정을 지운 뒤
+  /// 타임라인·할 일 섹션을 다시 불러옵니다.
+  ///
+  /// `sectionId`는 "일정 외 할일"(id 0)이 아니라 실제 일정의 id여야 합니다.
+  Future<void> _deleteSchedule(int sectionId) async {
+    if (sectionId == 0) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AppDialog(
+        title: '일정 삭제',
+        content: const Text(
+          '이 일정을 삭제하면 연결된 할 일과 수입·지출 내역도 함께 삭제됩니다.\n계속하시겠습니까?',
+        ),
+        confirmLabel: '삭제',
+        confirmColor: AppColors.expenseAccent,
+        onConfirm: () => Navigator.pop(ctx, true),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ScheduleApi.delete(sectionId);
+      if (!mounted) return;
+      setState(() => _editingSectionId = null);
+      await _loadScheduleAndTodos();
+      await _loadFinanceData();
+    } catch (e, stackTrace) {
+      if (mounted) {
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '일정 삭제에 실패했습니다.',
+          stackTrace: stackTrace,
+        );
+      }
+    }
+  }
+
   Future<void> _removeTodo(int sectionId, int itemId) async {
     final section = _sectionById(sectionId);
     final item = section.items.firstWhere((element) => element.id == itemId);
@@ -743,6 +783,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       onSectionTodoAdded: _addTodoToSection,
       onSectionEditCanceled: _closeEditMode,
       onSectionEditSaved: _saveSectionEdits,
+      onSectionDeleted: _deleteSchedule,
       onPrepareAddMode: _prepareAddMode,
       onDraftTodoAdded: _addDraftTodo,
       onDraftTodoRemoved: _removeDraftTodo,
@@ -1545,6 +1586,7 @@ class _DetailPanel extends StatelessWidget {
   final ValueChanged<int> onSectionTodoAdded;
   final VoidCallback onSectionEditCanceled;
   final VoidCallback onSectionEditSaved;
+  final ValueChanged<int> onSectionDeleted;
   final VoidCallback onPrepareAddMode;
   final VoidCallback onDraftTodoAdded;
   final ValueChanged<String> onDraftTodoRemoved;
@@ -1583,6 +1625,7 @@ class _DetailPanel extends StatelessWidget {
     required this.onSectionTodoAdded,
     required this.onSectionEditCanceled,
     required this.onSectionEditSaved,
+    required this.onSectionDeleted,
     required this.onPrepareAddMode,
     required this.onDraftTodoAdded,
     required this.onDraftTodoRemoved,
@@ -1622,6 +1665,7 @@ class _DetailPanel extends StatelessWidget {
                   onSectionTodoAdded: onSectionTodoAdded,
                   onSectionEditCanceled: onSectionEditCanceled,
                   onSectionEditSaved: onSectionEditSaved,
+                  onSectionDeleted: onSectionDeleted,
                 ),
               _DetailMode.finance => _FinancePanel(entries: financeEntries),
               _DetailMode.add => _ScheduleAddPanel(
@@ -1721,6 +1765,7 @@ class _TodoPanel extends StatelessWidget {
   final ValueChanged<int> onSectionTodoAdded;
   final VoidCallback onSectionEditCanceled;
   final VoidCallback onSectionEditSaved;
+  final ValueChanged<int> onSectionDeleted;
 
   const _TodoPanel({
     required this.sections,
@@ -1733,6 +1778,7 @@ class _TodoPanel extends StatelessWidget {
     required this.onSectionTodoAdded,
     required this.onSectionEditCanceled,
     required this.onSectionEditSaved,
+    required this.onSectionDeleted,
   });
 
   @override
@@ -1755,12 +1801,26 @@ class _TodoPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  section.title,
-                  style: AppTextStyles.caption.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        section.title,
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    // "일정 외 할일"(id 0)은 실제 일정이 아니므로 삭제할 수 없습니다.
+                    if (isEditing && section.id != 0)
+                      IconButton(
+                        tooltip: '일정 삭제',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => onSectionDeleted(section.id),
+                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 if (section.items.isEmpty && !isEditing)
