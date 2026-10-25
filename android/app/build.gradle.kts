@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.segye_world"
+    namespace = "com.onharu.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -22,8 +22,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.segye_world"
+        // Play 업로드 후에는 바꿀 수 없고, Kakao Developers 의 Android 플랫폼 등록값과 같아야 합니다.
+        applicationId = "com.onharu.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
