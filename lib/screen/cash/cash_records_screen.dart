@@ -238,6 +238,15 @@ class _RecordRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(_formatDateTime(record.transactionTime), style: AppTextStyles.caption),
+                if (record.memo != null && record.memo!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    record.memo!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                  ),
+                ],
               ],
             ),
           ),

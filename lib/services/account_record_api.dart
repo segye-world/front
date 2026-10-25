@@ -21,7 +21,7 @@ class AccountRecordApi {
         .toList();
   }
 
-  // 요청 형식: { categoryId, sourceCategoryId, amount, transactionTime, scheduleId }
+  // 요청 형식: { categoryId, sourceCategoryId, amount, transactionTime, scheduleId, memo }
   // amount: 항상 양수 전송 (categoryType으로 수입/지출 구분)
   // sourceCategoryId: 지출이 빠져나간 수입원(=지출 수단) 카테고리 id. 지출에만 필요하다.
   static Future<AccountRecordModel> create({
@@ -30,6 +30,7 @@ class AccountRecordApi {
     int? scheduleId,
     int? sourceCategoryId,
     required DateTime transactionTime,
+    String? memo,
   }) async {
     final response = await ApiClient.post('/api/v1/account-records', {
       'categoryId': categoryId,
@@ -37,10 +38,32 @@ class AccountRecordApi {
       if (sourceCategoryId != null) 'sourceCategoryId': sourceCategoryId,
       'transactionTime': _isoLocal(transactionTime),
       if (scheduleId != null) 'scheduleId': scheduleId,
+      if (memo != null && memo.isNotEmpty) 'memo': memo,
     });
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('가계부 기록 생성 실패');
     }
+    final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    return AccountRecordModel.fromJson(body['data'] as Map<String, dynamic>);
+  }
+
+  static Future<AccountRecordModel> update({
+    required int id,
+    int? amount,
+    int? categoryId,
+    int? sourceCategoryId,
+    DateTime? transactionTime,
+    String? memo,
+  }) async {
+    final reqBody = <String, dynamic>{
+      if (amount != null) 'amount': amount,
+      if (categoryId != null) 'categoryId': categoryId,
+      if (sourceCategoryId != null) 'sourceCategoryId': sourceCategoryId,
+      if (transactionTime != null) 'transactionTime': _isoLocal(transactionTime),
+      if (memo != null) 'memo': memo,
+    };
+    final response = await ApiClient.put('/api/v1/account-records/$id', reqBody);
+    if (response.statusCode != 200) throw Exception('가계부 기록 수정 실패');
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     return AccountRecordModel.fromJson(body['data'] as Map<String, dynamic>);
   }
