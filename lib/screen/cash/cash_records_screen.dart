@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
@@ -5,6 +7,7 @@ import '../../services/account_record_api.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/common/app_dialog.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -21,8 +24,14 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
 
   late DateTime _visibleMonth;
   _RecordFilter _filter = _RecordFilter.expense;
+  // 날짜 흐름을 보기 쉽도록 날짜별 묶음을 기본으로 두고, 필요하면 카테고리별로 전환합니다.
+  _ViewMode _viewMode = _ViewMode.date;
   List<AccountRecordModel> _records = [];
   bool _isLoading = false;
+
+  // 3초 이상 꾹 눌러 들어가는 삭제 선택 모드. 선택된 항목이 하나라도 있으면 선택 모드입니다.
+  final Set<int> _selectedIds = <int>{};
+  bool get _isSelectionMode => _selectedIds.isNotEmpty;
 
   @override
   void initState() {
@@ -36,7 +45,10 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _selectedIds.clear();
+    });
     try {
       final from = _dateStr(DateTime(_visibleMonth.year, _visibleMonth.month, 1));
       final to = _dateStr(DateTime(_visibleMonth.year, _visibleMonth.month + 1, 0));
@@ -47,6 +59,62 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
       if (mounted) setState(() => _records = []);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _handleRecordTap(AccountRecordModel record) {
+    if (_isSelectionMode) {
+      _toggleSelected(record.id);
+    } else {
+      _showRecordDetail(context, record);
+    }
+  }
+
+  void _handleRecordLongPress(AccountRecordModel record) {
+    setState(() => _selectedIds.add(record.id));
+  }
+
+  void _toggleSelected(int id) {
+    setState(() {
+      if (!_selectedIds.remove(id)) {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _cancelSelection() {
+    setState(() => _selectedIds.clear());
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selectedIds.isEmpty) return;
+    final count = _selectedIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AppDialog(
+        title: '내역 삭제',
+        content: Text('선택한 $count개 내역을 삭제할까요?'),
+        confirmLabel: '삭제',
+        confirmColor: AppColors.expenseAccent,
+        onConfirm: () => Navigator.pop(context, true),
+      ),
+    );
+    if (confirmed != true) return;
+
+    final idsToDelete = _selectedIds.toList();
+    try {
+      await Future.wait(idsToDelete.map((id) => AccountRecordApi.delete(id)));
+      if (!mounted) return;
+      setState(() {
+        _records.removeWhere((r) => idsToDelete.contains(r.id));
+        _selectedIds.clear();
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('내역 삭제에 실패했습니다.')),
+        );
+      }
     }
   }
 
@@ -65,13 +133,48 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
     return grouped;
   }
 
+  /// 날짜(일 단위)로 묶고, 최신 날짜가 위로 오도록 정렬합니다.
+  List<MapEntry<DateTime, List<AccountRecordModel>>> _groupByDate(
+      List<AccountRecordModel> records) {
+    final grouped = <DateTime, List<AccountRecordModel>>{};
+    for (final record in records) {
+      final time = record.transactionTime;
+      final day = DateTime(time.year, time.month, time.day);
+      grouped.putIfAbsent(day, () => []).add(record);
+    }
+    for (final group in grouped.values) {
+      group.sort((a, b) => b.transactionTime.compareTo(a.transactionTime));
+    }
+    final entries = grouped.entries.toList()
+      ..sort((a, b) => b.key.compareTo(a.key));
+    return entries;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final grouped = _groupByCategory(_filteredRecords);
+    final filtered = _filteredRecords;
+    final isEmpty = filtered.isEmpty;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const AppTopBar(title: '전체 보기'),
+      appBar: AppTopBar(
+        title: _isSelectionMode ? '${_selectedIds.length}개 선택' : '전체 보기',
+        showBack: !_isSelectionMode,
+        actions: _isSelectionMode
+            ? [
+                IconButton(
+                  tooltip: '선택 삭제',
+                  icon: const Icon(Icons.delete_outline, color: AppColors.expenseAccent),
+                  onPressed: _deleteSelected,
+                ),
+                IconButton(
+                  tooltip: '선택 해제',
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  onPressed: _cancelSelection,
+                ),
+              ]
+            : null,
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -87,19 +190,49 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
                           onNext: _changeMonth(1),
                         ),
                         const SizedBox(height: 10),
-                        _FilterTabs(
-                          selectedFilter: _filter,
-                          onChanged: (filter) => setState(() => _filter = filter),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _FilterTabs(
+                              selectedFilter: _filter,
+                              onChanged: (filter) => setState(() {
+                                _filter = filter;
+                                _selectedIds.clear();
+                              }),
+                            ),
+                            _ViewModeToggle(
+                              selectedMode: _viewMode,
+                              onChanged: (mode) => setState(() => _viewMode = mode),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 14),
-                        if (grouped.isEmpty)
+                        if (isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(top: 80),
                             child: Center(child: Text('해당 월의 거래 내역이 없어요.', style: AppTextStyles.caption)),
                           )
+                        else if (_viewMode == _ViewMode.date)
+                          ..._groupByDate(filtered).map(
+                            (entry) => _DateGroup(
+                              date: entry.key,
+                              records: entry.value,
+                              isSelectionMode: _isSelectionMode,
+                              selectedIds: _selectedIds,
+                              onRecordTap: _handleRecordTap,
+                              onRecordLongPress: _handleRecordLongPress,
+                            ),
+                          )
                         else
-                          ...grouped.entries.map(
-                            (entry) => _CategoryGroup(categoryName: entry.key, records: entry.value),
+                          ..._groupByCategory(filtered).entries.map(
+                            (entry) => _CategoryGroup(
+                              categoryName: entry.key,
+                              records: entry.value,
+                              isSelectionMode: _isSelectionMode,
+                              selectedIds: _selectedIds,
+                              onRecordTap: _handleRecordTap,
+                              onRecordLongPress: _handleRecordLongPress,
+                            ),
                           ),
                       ],
                     ),
@@ -125,6 +258,15 @@ enum _RecordFilter {
   final String type;
 
   const _RecordFilter(this.label, this.type);
+}
+
+enum _ViewMode {
+  date('날짜별'),
+  category('카테고리별');
+
+  final String label;
+
+  const _ViewMode(this.label);
 }
 
 class _MonthSelector extends StatelessWidget {
@@ -183,11 +325,66 @@ class _FilterTabs extends StatelessWidget {
   }
 }
 
+/// 날짜별 ↔ 카테고리별 묶음을 전환하는 토글.
+class _ViewModeToggle extends StatelessWidget {
+  final _ViewMode selectedMode;
+  final ValueChanged<_ViewMode> onChanged;
+
+  const _ViewModeToggle({required this.selectedMode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: AppColors.inputFill,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: _ViewMode.values.map((mode) {
+          final isSelected = selectedMode == mode;
+          return InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => onChanged(mode),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected ? _CashRecordsScreenState._primaryPink : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                mode.label,
+                style: TextStyle(
+                  fontSize: AppTextStyles.small.fontSize,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                ),
+              ),
+            ),
+          );
+        }).toList(growable: false),
+      ),
+    );
+  }
+}
+
 class _CategoryGroup extends StatelessWidget {
   final String categoryName;
   final List<AccountRecordModel> records;
+  final bool isSelectionMode;
+  final Set<int> selectedIds;
+  final void Function(AccountRecordModel) onRecordTap;
+  final void Function(AccountRecordModel) onRecordLongPress;
 
-  const _CategoryGroup({required this.categoryName, required this.records});
+  const _CategoryGroup({
+    required this.categoryName,
+    required this.records,
+    required this.isSelectionMode,
+    required this.selectedIds,
+    required this.onRecordTap,
+    required this.onRecordLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -206,30 +403,168 @@ class _CategoryGroup extends StatelessWidget {
           const SizedBox(height: 10),
           const Divider(height: 1, color: AppColors.cardBorder),
           const SizedBox(height: 10),
-          ...records.map((record) => _RecordRow(record: record)),
+          ...records.map((record) => _RecordRow(
+                record: record,
+                isSelectionMode: isSelectionMode,
+                isSelected: selectedIds.contains(record.id),
+                onTap: () => onRecordTap(record),
+                onLongPressSelect: () => onRecordLongPress(record),
+              )),
         ],
       ),
     );
   }
 }
 
-class _RecordRow extends StatelessWidget {
-  final AccountRecordModel record;
+/// 날짜별 묶음 섹션. 헤더에 그 날의 합계를 함께 보여줍니다.
+class _DateGroup extends StatelessWidget {
+  final DateTime date;
+  final List<AccountRecordModel> records;
+  final bool isSelectionMode;
+  final Set<int> selectedIds;
+  final void Function(AccountRecordModel) onRecordTap;
+  final void Function(AccountRecordModel) onRecordLongPress;
 
-  const _RecordRow({required this.record});
+  const _DateGroup({
+    required this.date,
+    required this.records,
+    required this.isSelectionMode,
+    required this.selectedIds,
+    required this.onRecordTap,
+    required this.onRecordLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // 필터로 이미 수입/지출 한쪽만 들어오므로 모든 항목의 부호가 같습니다.
+    final isIncome = records.first.categoryType == 'INCOME';
+    final total = records.fold<int>(0, (sum, record) => sum + record.amount);
+    final totalText = isIncome ? '+${_formatNumber(total)}원' : '-${_formatNumber(total)}원';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatDayHeader(date),
+                style: TextStyle(color: AppColors.textPrimary, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w700),
+              ),
+              Text(
+                totalText,
+                style: TextStyle(
+                  color: isIncome ? AppColors.income : AppColors.expense,
+                  fontSize: AppTextStyles.caption.fontSize,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: AppColors.cardBorder),
+          const SizedBox(height: 10),
+          ...records.map((record) => _RecordRow(
+                record: record,
+                isSelectionMode: isSelectionMode,
+                isSelected: selectedIds.contains(record.id),
+                onTap: () => onRecordTap(record),
+                onLongPressSelect: () => onRecordLongPress(record),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+/// 3초 이상 꾹 누르면 삭제 선택 모드로 들어가는 거래 행.
+///
+/// 기본 [GestureDetector.onLongPress]는 바로 반응하므로 쓰지 않고, 누른 순간부터
+/// 직접 타이머를 돌려 3초가 지날 때만 선택 콜백을 부릅니다. 그 전에 손을 떼면
+/// 평소처럼 상세 보기(혹은 선택 토글)로 이어지는 탭으로 처리합니다.
+class _RecordRow extends StatefulWidget {
+  final AccountRecordModel record;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onLongPressSelect;
+
+  const _RecordRow({
+    required this.record,
+    required this.isSelectionMode,
+    required this.isSelected,
+    required this.onTap,
+    required this.onLongPressSelect,
+  });
+
+  @override
+  State<_RecordRow> createState() => _RecordRowState();
+}
+
+class _RecordRowState extends State<_RecordRow> {
+  static const _holdDuration = Duration(seconds: 3);
+
+  Timer? _holdTimer;
+  bool _holdFired = false;
+
+  void _startHold() {
+    _holdFired = false;
+    _holdTimer = Timer(_holdDuration, () {
+      _holdFired = true;
+      widget.onLongPressSelect();
+    });
+  }
+
+  void _cancelHold() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+  }
+
+  void _handleTap() {
+    // 3초 타이머가 이미 선택을 처리했다면, 손을 뗄 때 따라오는 탭은 무시합니다.
+    if (_holdFired) {
+      _holdFired = false;
+      return;
+    }
+    widget.onTap();
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final record = widget.record;
     final isIncome = record.categoryType == 'INCOME';
     final amountText = isIncome ? '+${_formatNumber(record.amount)}' : '-${_formatNumber(record.amount)}';
 
-    return InkWell(
-      onTap: () => _showRecordDetail(context, record),
-      child: Padding(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _startHold(),
+      onTapUp: (_) => _cancelHold(),
+      onTapCancel: _cancelHold,
+      onTap: _handleTap,
+      child: Container(
+        color: widget.isSelected ? AppColors.primaryPinkTint : Colors.transparent,
         padding: const EdgeInsets.only(bottom: 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.isSelectionMode) ...[
+              Padding(
+                padding: const EdgeInsets.only(right: 10, top: 1),
+                child: Icon(
+                  widget.isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                  size: 20,
+                  color: widget.isSelected ? AppColors.primaryPink : AppColors.textTertiary,
+                ),
+              ),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,6 +739,11 @@ String _formatDateTime(DateTime dateTime) {
 }
 
 const List<String> _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+
+String _formatDayHeader(DateTime date) {
+  final weekday = _weekdayLabels[date.weekday - 1];
+  return '${date.month}월 ${date.day}일 ($weekday)';
+}
 
 String _formatFullDate(DateTime dateTime) {
   final weekday = _weekdayLabels[dateTime.weekday - 1];

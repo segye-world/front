@@ -67,6 +67,13 @@ class AccountRecordApi {
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     return AccountRecordModel.fromJson(body['data'] as Map<String, dynamic>);
   }
+
+  static Future<void> delete(int id) async {
+    final response = await ApiClient.delete('/api/v1/account-records/$id');
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('가계부 기록 삭제 실패');
+    }
+  }
 }
 
 /// 백엔드 LocalDateTime 형식(yyyy-MM-ddTHH:mm:ss)에 맞춰 타임존 없이 직렬화합니다.
