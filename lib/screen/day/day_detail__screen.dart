@@ -14,6 +14,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/common/app_primary_button.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -230,53 +231,82 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         _selectedFinanceCategory ??= _expenseCategories.firstOrNull;
         _selectedSourceCategoryId ??= _incomeCategoryModels.firstOrNull?.id;
       });
-    } catch (_) {
-      // Keep the schedule screen usable when finance data is temporarily unavailable.
+    } catch (e, stackTrace) {
+      if (mounted) {
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '수입·지출 내역을 불러오지 못했습니다.',
+          stackTrace: stackTrace,
+        );
+      }
     }
   }
 
+  /// 일정과 할 일을 각각 따로 불러옵니다. 하나를 Future.wait로 묶으면 한쪽이
+  /// 실패할 때 다른 쪽까지 통째로 표시되지 않으므로, 둘을 분리해 한쪽이
+  /// 실패해도 나머지는 그대로 화면에 보이게 합니다.
   Future<void> _loadScheduleAndTodos() async {
+    List<ScheduleModel> schedules = const [];
+    List<TodoModel> todos = const [];
+    Object? firstError;
+    StackTrace? firstStackTrace;
+
     try {
-      final results = await Future.wait([
-        ScheduleApi.fetchByDate(_dateString),
-        TodoApi.fetchByDate(_dateString),
-      ]);
-      if (!mounted) return;
-      final schedules = results[0] as List<ScheduleModel>;
-      final todos = results[1] as List<TodoModel>;
-      final blocks = schedules.map((schedule) => _ScheduleBlock(
-        id: schedule.id,
-        title: schedule.title,
-        startHour: schedule.startHour,
-        endHour: schedule.endHour,
-        color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.45),
-      )).toList();
-      final sections = schedules.map((schedule) => _TodoSectionState(
-        id: schedule.id,
-        title: '${schedule.title} ${_formatHour(schedule.startHour.toDouble())}-${_formatHour(schedule.endHour.toDouble())}',
-        color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.35),
-        items: todos.where((todo) => todo.scheduleId == schedule.id).map(
+      schedules = await ScheduleApi.fetchByDate(_dateString);
+    } catch (e, stackTrace) {
+      firstError = e;
+      firstStackTrace = stackTrace;
+    }
+
+    try {
+      todos = await TodoApi.fetchByDate(_dateString);
+    } catch (e, stackTrace) {
+      firstError ??= e;
+      firstStackTrace ??= stackTrace;
+    }
+
+    if (!mounted) return;
+
+    final blocks = schedules.map((schedule) => _ScheduleBlock(
+      id: schedule.id,
+      title: schedule.title,
+      startHour: schedule.startHour,
+      endHour: schedule.endHour,
+      color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.45),
+    )).toList();
+    final sections = schedules.map((schedule) => _TodoSectionState(
+      id: schedule.id,
+      title: '${schedule.title} ${_formatHour(schedule.startHour.toDouble())}-${_formatHour(schedule.endHour.toDouble())}',
+      color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.35),
+      items: todos.where((todo) => todo.scheduleId == schedule.id).map(
+        (todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
+      ).toList(),
+    )).toList()
+      ..add(_TodoSectionState(
+        id: 0,
+        title: '일정 외 할일',
+        color: _defaultSectionColor,
+        items: todos.where((todo) => todo.scheduleId == null).map(
           (todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
         ).toList(),
-      )).toList()
-        ..add(_TodoSectionState(
-          id: 0,
-          title: '일정 외 할일',
-          color: _defaultSectionColor,
-          items: todos.where((todo) => todo.scheduleId == null).map(
-            (todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
-          ).toList(),
-        ));
-      setState(() {
-        _scheduleBlocks
-          ..clear()
-          ..addAll(blocks);
-        _sections
-          ..clear()
-          ..addAll(sections);
-      });
-    } catch (_) {
-      // Keep the empty state visible until the schedule/todo APIs are available.
+      ));
+    setState(() {
+      _scheduleBlocks
+        ..clear()
+        ..addAll(blocks);
+      _sections
+        ..clear()
+        ..addAll(sections);
+    });
+
+    if (firstError != null) {
+      showErrorSnackBar(
+        context,
+        firstError,
+        fallback: '일정 또는 할 일을 불러오지 못했습니다.',
+        stackTrace: firstStackTrace,
+      );
     }
   }
 
@@ -384,8 +414,16 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     setState(() => item.isDone = isDone);
     try {
       await TodoApi.update(itemId, isDone: isDone);
-    } catch (_) {
-      if (mounted) setState(() => item.isDone = !isDone);
+    } catch (e, stackTrace) {
+      if (mounted) {
+        setState(() => item.isDone = !isDone);
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '할 일 상태 변경에 실패했습니다.',
+          stackTrace: stackTrace,
+        );
+      }
     }
   }
 
@@ -406,8 +444,16 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     setState(() => item.label = value);
     try {
       await TodoApi.update(itemId, label: value);
-    } catch (_) {
-      if (mounted) setState(() => item.label = previous);
+    } catch (e, stackTrace) {
+      if (mounted) {
+        setState(() => item.label = previous);
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '할 일 수정에 실패했습니다.',
+          stackTrace: stackTrace,
+        );
+      }
     }
   }
 
@@ -417,8 +463,16 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     setState(() => section.items.remove(item));
     try {
       await TodoApi.delete(itemId);
-    } catch (_) {
-      if (mounted) setState(() => section.items.add(item));
+    } catch (e, stackTrace) {
+      if (mounted) {
+        setState(() => section.items.add(item));
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '할 일 삭제에 실패했습니다.',
+          stackTrace: stackTrace,
+        );
+      }
     }
   }
 
@@ -438,10 +492,13 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         );
         _newTodoController.clear();
       });
-    } catch (_) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('할 일 저장에 실패했습니다.')),
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '할 일 저장에 실패했습니다.',
+          stackTrace: stackTrace,
         );
       }
     }
@@ -501,9 +558,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   Future<void> _submitNewSchedule() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('일정 제목을 입력해 주세요.')),
-      );
+      showAppSnackBar(context, '일정 제목을 입력해 주세요.');
       return;
     }
 
@@ -525,10 +580,11 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     if (amount != null &&
         amount > 0 &&
         (selectedCategory == null || (requiresSourceCategory && selectedSourceCategory == null))) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(requiresSourceCategory
+      showAppSnackBar(
+        context,
+        requiresSourceCategory
             ? '지출 카테고리와 지출 수단을 불러온 뒤 다시 시도해 주세요.'
-            : '수입원 카테고리를 불러온 뒤 다시 시도해 주세요.')),
+            : '수입원 카테고리를 불러온 뒤 다시 시도해 주세요.',
       );
       return;
     }
@@ -599,10 +655,13 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
       _detailMode = _DetailMode.todo;
       });
-    } catch (_) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('일정 또는 수입·지출 저장에 실패했습니다.')),
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '일정 또는 수입·지출 저장에 실패했습니다.',
+          stackTrace: stackTrace,
         );
       }
     }

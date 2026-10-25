@@ -15,6 +15,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/common/app_dialog.dart';
 import '../../widgets/common/app_primary_button.dart';
+import '../../widgets/common/app_snackbar.dart';
 import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
@@ -86,8 +87,15 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         _categories = categories;
         _budget = budget;
       });
-    } catch (_) {
-      // show empty state on error
+    } catch (e, stackTrace) {
+      if (mounted) {
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '가계부 내역을 불러오지 못했습니다.',
+          stackTrace: stackTrace,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -201,10 +209,13 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
       final saved = await BudgetApi.upsert(year: now.year, month: now.month, limitAmount: result);
       if (!mounted) return;
       setState(() => _budget = saved);
-    } catch (_) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('지출 목표 저장에 실패했습니다.')),
+        showErrorSnackBar(
+          context,
+          e,
+          fallback: '지출 목표 저장에 실패했습니다.',
+          stackTrace: stackTrace,
         );
       }
     }
@@ -216,9 +227,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
     final incomeCategories =
         _categories.where((category) => category.type == 'INCOME').toList();
     if (expenseCategories.isEmpty || incomeCategories.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('카테고리와 수입원을 먼저 추가해 주세요.')),
-      );
+      showAppSnackBar(context, '카테고리와 수입원을 먼저 추가해 주세요.');
       return;
     }
     showDialog<void>(
@@ -237,14 +246,15 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
             );
             await _loadData();
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(isExpense ? '지출을 추가했습니다.' : '수입을 추가했습니다.')),
-              );
+              showAppSnackBar(context, isExpense ? '지출을 추가했습니다.' : '수입을 추가했습니다.');
             }
-          } catch (_) {
+          } catch (e, stackTrace) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('가계부 기록에 실패했습니다.')),
+              showErrorSnackBar(
+                context,
+                e,
+                fallback: '가계부 기록에 실패했습니다.',
+                stackTrace: stackTrace,
               );
             }
           }
@@ -739,9 +749,7 @@ class _BudgetGoalDialogState extends State<_BudgetGoalDialog> {
       onConfirm: () {
         final amount = int.tryParse(_controller.text.trim());
         if (amount == null || amount <= 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('올바른 금액을 입력해 주세요.')),
-          );
+          showAppSnackBar(context, '올바른 금액을 입력해 주세요.');
           return;
         }
         Navigator.pop(context, amount);
@@ -918,7 +926,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                 onPressed: () async {
                   final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
                   if (amount <= 0) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('금액을 입력해 주세요.')));
+                    showAppSnackBar(context, '금액을 입력해 주세요.');
                     return;
                   }
                   final transactionTime = DateTime(
