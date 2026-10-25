@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       navigatorKey: NotificationService.instance.navigatorKey,
-      title: 'Cash Diary',
+      title: '온하루',
       initialRoute: Routes.login,
       onGenerateRoute: AppRouter.generateRoute,
       theme: _buildTheme(),
