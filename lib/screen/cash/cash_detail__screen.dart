@@ -226,13 +226,14 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
       builder: (_) => _AddTransactionDialog(
         expenseCategories: expenseCategories,
         incomeCategories: incomeCategories,
-        onSave: (amount, category, sourceCategory, isExpense, transactionTime) async {
+        onSave: (amount, category, sourceCategory, isExpense, transactionTime, memo) async {
           try {
             await AccountRecordApi.create(
               amount: amount,
               categoryId: category.id,
               sourceCategoryId: sourceCategory?.id,
               transactionTime: transactionTime,
+              memo: memo,
             );
             await _loadData();
             if (mounted) {
@@ -562,7 +563,14 @@ class _RecentRecordTile extends StatelessWidget {
               children: [
                 Text(record.categoryName, style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text(isIncome ? '수입' : '지출', style: AppTextStyles.tiny.copyWith(color: AppColors.textTertiary)),
+                Text(
+                  record.memo != null && record.memo!.isNotEmpty
+                      ? record.memo!
+                      : (isIncome ? '수입' : '지출'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.tiny.copyWith(color: AppColors.textTertiary),
+                ),
               ],
             ),
           ),
@@ -754,6 +762,7 @@ class _AddTransactionDialog extends StatefulWidget {
     CategoryModel? sourceCategory,
     bool isExpense,
     DateTime transactionTime,
+    String? memo,
   ) onSave;
 
   const _AddTransactionDialog({
@@ -769,6 +778,7 @@ class _AddTransactionDialog extends StatefulWidget {
 class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   bool _isExpense = true;
   final _amountCtrl = TextEditingController();
+  final _memoCtrl = TextEditingController();
   late CategoryModel _selectedCategory;
   CategoryModel? _selectedSourceCategory;
   DateTime _selectedDate = DateTime.now();
@@ -787,6 +797,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   @override
   void dispose() {
     _amountCtrl.dispose();
+    _memoCtrl.dispose();
     super.dispose();
   }
 
@@ -885,6 +896,21 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                   onChanged: (source) => setState(() => _selectedSourceCategory = source),
                 ),
               ],
+              const SizedBox(height: 18),
+              const _DialogLabel('메모(선택)'),
+              TextField(
+                controller: _memoCtrl,
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: '메모를 입력하세요',
+                  filled: true,
+                  fillColor: AppColors.inputFill,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.button),
+                    borderSide: const BorderSide(color: AppColors.inputBorder),
+                  ),
+                ),
+              ),
               const SizedBox(height: 22),
               AppPrimaryButton(
                 backgroundColor: activeColor,
@@ -902,6 +928,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                     _selectedTime.hour,
                     _selectedTime.minute,
                   );
+                  final memo = _memoCtrl.text.trim();
                   Navigator.pop(context);
                   await widget.onSave(
                     amount,
@@ -909,6 +936,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                     _isExpense ? _selectedSourceCategory : null,
                     _isExpense,
                     transactionTime,
+                    memo.isEmpty ? null : memo,
                   );
                 },
               ),

@@ -557,6 +557,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
             _selectedDate.month,
             _selectedDate.day,
           ),
+          memo: _memoController.text.trim(),
         );
       }
 
@@ -1854,7 +1855,11 @@ class _FinancePanel extends StatelessWidget {
                   dense: true,
                   title: Text(entry.categoryName, style: TextStyle(fontSize: AppTextStyles.caption.fontSize)),
                   subtitle: Text(
-                    entry.categoryType == 'INCOME' ? '수입' : '지출',
+                    entry.memo != null && entry.memo!.isNotEmpty
+                        ? '${entry.categoryType == 'INCOME' ? '수입' : '지출'} · ${entry.memo}'
+                        : (entry.categoryType == 'INCOME' ? '수입' : '지출'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: AppTextStyles.small.fontSize),
                   ),
                   trailing: Text(

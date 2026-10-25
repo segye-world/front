@@ -21,6 +21,8 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
 
   late DateTime _visibleMonth;
   _RecordFilter _filter = _RecordFilter.expense;
+  // 날짜 흐름을 보기 쉽도록 날짜별 묶음을 기본으로 두고, 필요하면 카테고리별로 전환합니다.
+  _ViewMode _viewMode = _ViewMode.date;
   List<AccountRecordModel> _records = [];
   bool _isLoading = false;
 
@@ -65,9 +67,27 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
     return grouped;
   }
 
+  /// 날짜(일 단위)로 묶고, 최신 날짜가 위로 오도록 정렬합니다.
+  List<MapEntry<DateTime, List<AccountRecordModel>>> _groupByDate(
+      List<AccountRecordModel> records) {
+    final grouped = <DateTime, List<AccountRecordModel>>{};
+    for (final record in records) {
+      final time = record.transactionTime;
+      final day = DateTime(time.year, time.month, time.day);
+      grouped.putIfAbsent(day, () => []).add(record);
+    }
+    for (final group in grouped.values) {
+      group.sort((a, b) => b.transactionTime.compareTo(a.transactionTime));
+    }
+    final entries = grouped.entries.toList()
+      ..sort((a, b) => b.key.compareTo(a.key));
+    return entries;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final grouped = _groupByCategory(_filteredRecords);
+    final filtered = _filteredRecords;
+    final isEmpty = filtered.isEmpty;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -87,18 +107,31 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
                           onNext: _changeMonth(1),
                         ),
                         const SizedBox(height: 10),
-                        _FilterTabs(
-                          selectedFilter: _filter,
-                          onChanged: (filter) => setState(() => _filter = filter),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _FilterTabs(
+                              selectedFilter: _filter,
+                              onChanged: (filter) => setState(() => _filter = filter),
+                            ),
+                            _ViewModeToggle(
+                              selectedMode: _viewMode,
+                              onChanged: (mode) => setState(() => _viewMode = mode),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 14),
-                        if (grouped.isEmpty)
+                        if (isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(top: 80),
                             child: Center(child: Text('해당 월의 거래 내역이 없어요.', style: AppTextStyles.caption)),
                           )
+                        else if (_viewMode == _ViewMode.date)
+                          ..._groupByDate(filtered).map(
+                            (entry) => _DateGroup(date: entry.key, records: entry.value),
+                          )
                         else
-                          ...grouped.entries.map(
+                          ..._groupByCategory(filtered).entries.map(
                             (entry) => _CategoryGroup(categoryName: entry.key, records: entry.value),
                           ),
                       ],
@@ -125,6 +158,15 @@ enum _RecordFilter {
   final String type;
 
   const _RecordFilter(this.label, this.type);
+}
+
+enum _ViewMode {
+  date('날짜별'),
+  category('카테고리별');
+
+  final String label;
+
+  const _ViewMode(this.label);
 }
 
 class _MonthSelector extends StatelessWidget {
@@ -183,6 +225,50 @@ class _FilterTabs extends StatelessWidget {
   }
 }
 
+/// 날짜별 ↔ 카테고리별 묶음을 전환하는 토글.
+class _ViewModeToggle extends StatelessWidget {
+  final _ViewMode selectedMode;
+  final ValueChanged<_ViewMode> onChanged;
+
+  const _ViewModeToggle({required this.selectedMode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: AppColors.inputFill,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: _ViewMode.values.map((mode) {
+          final isSelected = selectedMode == mode;
+          return InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => onChanged(mode),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected ? _CashRecordsScreenState._primaryPink : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                mode.label,
+                style: TextStyle(
+                  fontSize: AppTextStyles.small.fontSize,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                ),
+              ),
+            ),
+          );
+        }).toList(growable: false),
+      ),
+    );
+  }
+}
+
 class _CategoryGroup extends StatelessWidget {
   final String categoryName;
   final List<AccountRecordModel> records;
@@ -213,6 +299,52 @@ class _CategoryGroup extends StatelessWidget {
   }
 }
 
+/// 날짜별 묶음 섹션. 헤더에 그 날의 합계를 함께 보여줍니다.
+class _DateGroup extends StatelessWidget {
+  final DateTime date;
+  final List<AccountRecordModel> records;
+
+  const _DateGroup({required this.date, required this.records});
+
+  @override
+  Widget build(BuildContext context) {
+    // 필터로 이미 수입/지출 한쪽만 들어오므로 모든 항목의 부호가 같습니다.
+    final isIncome = records.first.categoryType == 'INCOME';
+    final total = records.fold<int>(0, (sum, record) => sum + record.amount);
+    final totalText = isIncome ? '+${_formatNumber(total)}원' : '-${_formatNumber(total)}원';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatDayHeader(date),
+                style: TextStyle(color: AppColors.textPrimary, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w700),
+              ),
+              Text(
+                totalText,
+                style: TextStyle(
+                  color: isIncome ? AppColors.income : AppColors.expense,
+                  fontSize: AppTextStyles.caption.fontSize,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: AppColors.cardBorder),
+          const SizedBox(height: 10),
+          ...records.map((record) => _RecordRow(record: record)),
+        ],
+      ),
+    );
+  }
+}
+
 class _RecordRow extends StatelessWidget {
   final AccountRecordModel record;
 
@@ -223,34 +355,141 @@ class _RecordRow extends StatelessWidget {
     final isIncome = record.categoryType == 'INCOME';
     final amountText = isIncome ? '+${_formatNumber(record.amount)}' : '-${_formatNumber(record.amount)}';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  record.categoryName,
-                  style: TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(_formatDateTime(record.transactionTime), style: AppTextStyles.caption),
-              ],
+    return InkWell(
+      onTap: () => _showRecordDetail(context, record),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    record.categoryName,
+                    style: TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(_formatDateTime(record.transactionTime), style: AppTextStyles.caption),
+                  if (record.memo != null && record.memo!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      record.memo!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          Text(
-            amountText,
-            style: TextStyle(
-              color: isIncome ? AppColors.income : AppColors.expense,
-              fontSize: AppTextStyles.caption.fontSize,
-              fontWeight: FontWeight.w700,
+            Text(
+              amountText,
+              style: TextStyle(
+                color: isIncome ? AppColors.income : AppColors.expense,
+                fontSize: AppTextStyles.caption.fontSize,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// 거래 행을 탭하면 메모와 날짜·시간을 포함한 상세 정보를 바텀시트로 보여줍니다.
+void _showRecordDetail(BuildContext context, AccountRecordModel record) {
+  final isIncome = record.categoryType == 'INCOME';
+  final amountColor = isIncome ? AppColors.income : AppColors.expense;
+  final amountText = isIncome ? '+${_formatNumber(record.amount)}원' : '-${_formatNumber(record.amount)}원';
+
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      return SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(_categoryIcon(record.categoryName), size: 18, color: AppColors.textPrimary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      record.categoryName,
+                      style: AppTextStyles.title.copyWith(color: _CashRecordsScreenState._lineNavy),
+                    ),
+                  ),
+                  Text(
+                    amountText,
+                    style: AppTextStyles.body.copyWith(color: amountColor, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _DetailRow(label: '구분', value: isIncome ? '수입' : '지출'),
+              const SizedBox(height: 10),
+              _DetailRow(label: '날짜', value: _formatFullDate(record.transactionTime)),
+              const SizedBox(height: 10),
+              _DetailRow(label: '시간', value: _formatTime(record.transactionTime)),
+              if (record.sourceCategoryName != null && record.sourceCategoryName!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _DetailRow(label: '지출 수단', value: record.sourceCategoryName!),
+              ],
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: AppColors.cardBorder),
+              const SizedBox(height: 14),
+              Text('메모', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashRecordsScreenState._lineNavy)),
+              const SizedBox(height: 6),
+              Text(
+                record.memo != null && record.memo!.isNotEmpty ? record.memo! : '메모가 없습니다.',
+                style: AppTextStyles.body.copyWith(
+                  color: record.memo != null && record.memo!.isNotEmpty
+                      ? AppColors.textPrimary
+                      : AppColors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 64,
+          child: Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: AppTextStyles.body.copyWith(color: _CashRecordsScreenState._lineNavy, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -294,6 +533,24 @@ String _formatDateTime(DateTime dateTime) {
   final hour = dateTime.hour.toString().padLeft(2, '0');
   final minute = dateTime.minute.toString().padLeft(2, '0');
   return '${dateTime.month}/${dateTime.day} $hour:$minute';
+}
+
+const List<String> _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+
+String _formatDayHeader(DateTime date) {
+  final weekday = _weekdayLabels[date.weekday - 1];
+  return '${date.month}월 ${date.day}일 ($weekday)';
+}
+
+String _formatFullDate(DateTime dateTime) {
+  final weekday = _weekdayLabels[dateTime.weekday - 1];
+  return '${dateTime.year}년 ${dateTime.month}월 ${dateTime.day}일 ($weekday)';
+}
+
+String _formatTime(DateTime dateTime) {
+  final hour = dateTime.hour.toString().padLeft(2, '0');
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
 }
 
 String _formatNumber(int value) {

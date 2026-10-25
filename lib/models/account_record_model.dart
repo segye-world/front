@@ -18,7 +18,7 @@ class CategoryModel {
 }
 
 // 친구가 구현한 AccountRecord 백엔드 응답 형식에 맞춤:
-// { id, categoryId, categoryName, categoryType, sourceCategoryId, sourceCategoryName, amount, transactionTime, scheduleId }
+// { id, categoryId, categoryName, categoryType, sourceCategoryId, sourceCategoryName, amount, transactionTime, scheduleId, memo }
 class AccountRecordModel {
   final int id;
   final int categoryId;
@@ -30,6 +30,7 @@ class AccountRecordModel {
   // 지출이 빠져나간 수입원(=지출 수단). 수입원 카테고리(INCOME)를 그대로 가리킨다.
   final int? sourceCategoryId;
   final String? sourceCategoryName;
+  final String? memo;
 
   const AccountRecordModel({
     required this.id,
@@ -41,6 +42,7 @@ class AccountRecordModel {
     this.scheduleId,
     this.sourceCategoryId,
     this.sourceCategoryName,
+    this.memo,
   });
 
   factory AccountRecordModel.fromJson(Map<String, dynamic> json) =>
@@ -57,5 +59,6 @@ class AccountRecordModel {
         scheduleId: json['scheduleId'] as int?,
         sourceCategoryId: (json['sourceCategoryId'] as num?)?.toInt(),
         sourceCategoryName: json['sourceCategoryName'] as String?,
+        memo: json['memo'] as String?,
       );
 }
