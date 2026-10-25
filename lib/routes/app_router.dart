@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'routes.dart';
 import '../screen/auth/login_screen.dart';
-import '../screen/auth/sighup_screen.dart';
 import '../screen/cash/cash_detail__screen.dart';
 import '../screen/cash/cash_records_screen.dart';
 import '../screen/day/day_detail__screen.dart';
@@ -18,11 +17,6 @@ class AppRouter {
       case Routes.login:
         return MaterialPageRoute(
           builder: (_) => const LoginScreen(),
-          settings: settings,
-        );
-      case Routes.signup:
-        return MaterialPageRoute(
-          builder: (_) => const SignupScreen(),
           settings: settings,
         );
       case Routes.main:
