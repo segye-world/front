@@ -38,63 +38,6 @@ class AuthLayout extends StatelessWidget {
   }
 }
 
-class AuthFieldLabel extends StatelessWidget {
-  final String text;
-
-  const AuthFieldLabel(this.text, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: AppColors.navyDark,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class AuthInput extends StatelessWidget {
-  final TextEditingController controller;
-  final String hintText;
-  final bool obscureText;
-
-  const AuthInput({
-    super.key,
-    required this.controller,
-    required this.hintText,
-    this.obscureText = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: const TextStyle(color: AppColors.textTertiary),
-        filled: true,
-        fillColor: AppColors.inputFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.button),
-          borderSide: const BorderSide(color: AppColors.inputBorder),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.button),
-          borderSide: const BorderSide(color: AppColors.inputBorder),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.button),
-          borderSide: const BorderSide(color: AppColors.primaryPink, width: 1.2),
-        ),
-      ),
-    );
-  }
-}
-
 class AuthSymbol extends StatelessWidget {
   final IconData icon;
 

@@ -12,9 +12,7 @@ import '../../widgets/template/app_top_bar.dart';
 import '../../widgets/template/bottom_nav_layout.dart';
 
 class MyPageScreen extends StatefulWidget {
-  final String loginEmail;
-
-  const MyPageScreen({super.key, this.loginEmail = ''});
+  const MyPageScreen({super.key});
 
   @override
   State<MyPageScreen> createState() => _MyPageScreenState();
@@ -22,27 +20,22 @@ class MyPageScreen extends StatefulWidget {
 
 class _MyPageScreenState extends State<MyPageScreen> {
   final AuthApi _authApi = AuthApi();
-  String _email = '';
+  String _nickname = '';
 
   @override
   void initState() {
     super.initState();
-    _loadEmail();
+    _loadNickname();
   }
 
-  Future<void> _loadEmail() async {
-    // 인자로 받은 이메일 우선, 없으면 저장된 토큰에서 로드합니다.
-    if (widget.loginEmail.isNotEmpty) {
-      setState(() => _email = widget.loginEmail);
-    } else {
-      final stored = await TokenStorage.loadEmail();
-      if (mounted) setState(() => _email = stored ?? '');
-    }
+  Future<void> _loadNickname() async {
+    final stored = await TokenStorage.loadNickname();
+    if (mounted) setState(() => _nickname = stored ?? '');
   }
 
   Future<void> _logout(BuildContext context) async {
     await NotificationService.instance.clear();
-    await TokenStorage.clear();
+    await _authApi.logout();
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
   }
@@ -62,7 +55,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
     try {
       await _authApi.deleteAccount();
       await NotificationService.instance.clear();
-      await TokenStorage.clear();
       if (!context.mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
     } catch (e, stackTrace) {
@@ -78,8 +70,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final displayId = _email.isEmpty ? '' : _email.split('@').first;
-    final displayEmail = _email.isEmpty ? '' : _email;
+    final displayName = _nickname.isEmpty ? '온하루 사용자' : _nickname;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -104,7 +95,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            displayId.isEmpty ? '?' : displayId.substring(0, 1),
+                            displayName.characters.first,
                             style: AppTextStyles.emphasis.copyWith(color: Colors.white),
                           ),
                         ),
@@ -113,7 +104,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              displayId,
+                              displayName,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textSecondary,
@@ -121,7 +112,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              displayEmail,
+                              '카카오 계정으로 로그인',
                               style: AppTextStyles.caption.copyWith(
                                 color: AppColors.textTertiary,
                               ),
