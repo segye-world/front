@@ -4,8 +4,19 @@ import '../models/schedule_model.dart';
 import 'notification_service.dart';
 
 class ScheduleApi {
-  static Future<List<ScheduleModel>> fetchByDate(String date) async {
-    final response = await ApiClient.get('/api/v1/schedules?date=$date');
+  /// 서버가 한 번에 허용하는 최대 조회 일수 (양끝 포함). segye-world/back#25
+  static const int maxRangeDays = 31;
+
+  static Future<List<ScheduleModel>> fetchByDate(String date) =>
+      _fetch('/api/v1/schedules?date=$date');
+
+  /// [from]~[to] (yyyy-MM-dd, 양끝 포함) 일정을 날짜·시작 시각 순으로 불러옵니다.
+  /// 구간은 최대 [maxRangeDays]일입니다.
+  static Future<List<ScheduleModel>> fetchRange(String from, String to) =>
+      _fetch('/api/v1/schedules?from=$from&to=$to');
+
+  static Future<List<ScheduleModel>> _fetch(String path) async {
+    final response = await ApiClient.get(path);
     if (response.statusCode != 200) throw Exception('일정 조회 실패');
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     final List<dynamic> data = body['data'] as List<dynamic>;

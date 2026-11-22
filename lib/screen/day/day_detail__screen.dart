@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
@@ -39,7 +41,30 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   /// 색을 지정하지 않은 할 일 섹션("일정 외 할일")의 기본 색.
   static const _defaultSectionColor = Color(0xFFD6D6D6);
 
-  late final List<_ScheduleBlock> _scheduleBlocks;
+  /// 타임라인에 칠할 날짜별 일정 블록. 키는 yyyy-MM-dd 입니다.
+  /// 위아래로 이어지는 타임라인이 앞뒤 날짜도 보여 주므로, 선택된 날짜뿐 아니라
+  /// [_loadTimelineRange] 로 불러온 앞뒤 며칠 치를 함께 들고 있습니다.
+  final Map<String, List<_ScheduleBlock>> _timelineBlocks = {};
+
+  /// 선택된 날짜의 일정 블록. [_timelineBlocks] 안의 그 날짜 목록을 그대로 가리키므로
+  /// 여기에 더하거나 지우면 타임라인에도 바로 반영됩니다.
+  List<_ScheduleBlock> get _scheduleBlocks =>
+      _timelineBlocks.putIfAbsent(_dateString, () => <_ScheduleBlock>[]);
+
+  List<_ScheduleBlock> _blocksForDate(DateTime date) =>
+      _timelineBlocks[_dateKey(date)] ?? const <_ScheduleBlock>[];
+
+  /// 타임라인 스크롤의 기준 날짜(이 날짜의 00시가 스크롤 0). 달력·HOME 으로 날짜를 바꿀 때만
+  /// 바뀌고, 타임라인을 스크롤해 날짜가 넘어갈 때는 그대로라서 스크롤 위치가 튀지 않습니다.
+  late DateTime _timelineAnchorDate;
+
+  /// [_timelineBlocks] 를 채워 둔 구간. 선택 날짜가 이 구간 끝에 가까워지면 다시 불러옵니다.
+  DateTime? _loadedRangeFrom;
+  DateTime? _loadedRangeTo;
+
+  /// 타임라인 스크롤로 날짜가 넘어갈 때, 지나가는 날마다 조회하지 않도록 잠시 기다렸다 부릅니다.
+  Timer? _scrollDateLoadTimer;
+
   late final List<_TodoSectionState> _sections;
   late final List<AccountRecordModel> _financeEntries;
 
@@ -104,8 +129,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _scheduleBlocks = <_ScheduleBlock>[];
     _selectedDate = widget.selectedDate;
+    _timelineAnchorDate = _selectedDate;
     _sections = <_TodoSectionState>[
       _TodoSectionState(
         id: 0,
@@ -118,10 +143,12 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     _financeEntries = <AccountRecordModel>[];
     _loadFinanceData();
     _loadScheduleAndTodos();
+    _loadTimelineRange(_selectedDate);
   }
 
   @override
   void dispose() {
+    _scrollDateLoadTimer?.cancel();
     _titleController.dispose();
     _amountController.dispose();
     _memoController.dispose();
@@ -224,12 +251,24 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   ///
   /// 새 날짜의 조회가 끝나기 전(또는 실패했을 때) 이전 날짜의 일정 블록·할 일·수입지출이
   /// 새 날짜 아래에 그대로 남아 보이지 않도록 화면 상태도 먼저 비웁니다. (#41)
-  void _changeDate(DateTime date) {
+  ///
+  /// [fromTimeline] 은 타임라인을 스크롤해 날짜가 넘어간 경우입니다. (#57)
+  /// 이때는 스크롤 기준 날짜와 이미 불러 둔 앞뒤 날짜의 일정 블록을 그대로 두고,
+  /// 할 일·수입지출만 새 날짜로 바꿉니다. 지나가는 날마다 조회하지 않도록 잠시 기다렸다 부릅니다.
+  void _changeDate(DateTime date, {bool fromTimeline = false}) {
+    final day = DateTime(date.year, date.month, date.day);
+    if (fromTimeline && _dateKey(day) == _dateString) return;
+
     setState(() {
-      _selectedDate = date;
+      _selectedDate = day;
       _lastLoadedSchedules = const [];
       _lastLoadedTodos = const [];
-      _scheduleBlocks.clear();
+      if (!fromTimeline) {
+        _timelineAnchorDate = day;
+        _timelineBlocks.clear();
+        _loadedRangeFrom = null;
+        _loadedRangeTo = null;
+      }
       _sections
         ..clear()
         ..add(_TodoSectionState(
@@ -243,12 +282,76 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _selectionAnchorHour = null;
       _selectionFocusHour = null;
     });
-    _loadFinanceData();
-    _loadScheduleAndTodos();
+
+    _scrollDateLoadTimer?.cancel();
+    if (!fromTimeline) {
+      _loadFinanceData();
+      _loadScheduleAndTodos();
+      _loadTimelineRange(day);
+      return;
+    }
+    _scrollDateLoadTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      _loadFinanceData();
+      _loadScheduleAndTodos();
+      if (_needsTimelineRange(day)) _loadTimelineRange(day);
+    });
   }
 
-  String get _dateString =>
-      '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+  String get _dateString => _dateKey(_selectedDate);
+
+  static String _dateKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// 타임라인이 미리 불러 둘 앞뒤 일수. 서버 한도(31일) 안에서 [center] 기준 ±7일을 읽습니다.
+  static const int _timelineRangeRadius = 7;
+
+  /// 선택 날짜가 불러 둔 구간 밖이거나 끝에서 2일 안쪽이면 다시 불러와야 합니다.
+  bool _needsTimelineRange(DateTime day) {
+    final from = _loadedRangeFrom;
+    final to = _loadedRangeTo;
+    if (from == null || to == null) return true;
+    return day.isBefore(from.add(const Duration(days: 2))) ||
+        day.isAfter(to.subtract(const Duration(days: 2)));
+  }
+
+  /// [center] 앞뒤 [_timelineRangeRadius]일의 일정을 한 번에 불러와 타임라인 블록을 채웁니다.
+  /// 실패해도 화면을 막지 않습니다. 선택된 날짜는 [_loadScheduleAndTodos] 가 따로 채우고,
+  /// 나머지 날짜는 비어 보일 뿐입니다.
+  Future<void> _loadTimelineRange(DateTime center) async {
+    final anchor = _timelineAnchorDate;
+    final from = DateTime(center.year, center.month, center.day - _timelineRangeRadius);
+    final to = DateTime(center.year, center.month, center.day + _timelineRangeRadius);
+    try {
+      final schedules = await ScheduleApi.fetchRange(_dateKey(from), _dateKey(to));
+      // 기다리는 사이 달력으로 다른 날짜로 옮겼다면 이 결과는 버립니다.
+      if (!mounted || anchor != _timelineAnchorDate) return;
+      final byDate = <String, List<_ScheduleBlock>>{};
+      for (final schedule in schedules) {
+        byDate.putIfAbsent(schedule.date, () => []).add(_blockFromSchedule(schedule));
+      }
+      setState(() {
+        for (var d = from; !d.isAfter(to); d = DateTime(d.year, d.month, d.day + 1)) {
+          final key = _dateKey(d);
+          // 선택된 날짜는 [_loadScheduleAndTodos] 가 할 일과 함께 관리하므로 건드리지 않습니다.
+          if (key == _dateString) continue;
+          _timelineBlocks[key] = byDate[key] ?? <_ScheduleBlock>[];
+        }
+        _loadedRangeFrom = from;
+        _loadedRangeTo = to;
+      });
+    } catch (_) {
+      // 앞뒤 날짜 미리보기는 부가 기능이라 오류 안내를 띄우지 않습니다.
+    }
+  }
+
+  _ScheduleBlock _blockFromSchedule(ScheduleModel schedule) => _ScheduleBlock(
+        id: schedule.id,
+        title: schedule.title,
+        startMinute: schedule.startMinute,
+        endMinute: schedule.endMinute,
+        color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.45),
+      );
 
   Future<void> _loadFinanceData() async {
     final date = _dateString;
@@ -323,13 +426,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     _lastLoadedSchedules = schedules;
     _lastLoadedTodos = todos;
 
-    final blocks = schedules.map((schedule) => _ScheduleBlock(
-      id: schedule.id,
-      title: schedule.title,
-      startMinute: schedule.startMinute,
-      endMinute: schedule.endMinute,
-      color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.45),
-    )).toList();
+    final blocks = schedules.map(_blockFromSchedule).toList();
     final sections = schedules.map((schedule) => _TodoSectionState(
       id: schedule.id,
       title: '${schedule.title} ${_formatMinute(schedule.startMinute)}-${_formatMinute(schedule.endMinute)}',
@@ -887,6 +984,10 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           key: _timelineKey,
           blocks: _scheduleBlocks,
           baseDate: _selectedDate,
+          anchorDate: _timelineAnchorDate,
+          blocksForDate: _blocksForDate,
+          // 타임라인을 스크롤해 다른 날짜가 맨 위로 오면 화면의 선택 날짜도 그 날짜로 바꿉니다. (#57)
+          onVisibleDateChanged: (date) => _changeDate(date, fromTimeline: true),
           onBlockLongPress: _openEditMode,
           selectionStartHour: _selectionStartHour,
           selectionEndHour: _selectionEndHour,
@@ -951,10 +1052,20 @@ class _TimelineWorkspace extends StatefulWidget {
   /// 펼쳐졌을 때 우측 끝에 남는 화살표 버튼의 폭.
   static const double handleWidth = 26;
 
+  /// 선택된 날짜의 일정 블록. 접힌 납작한 레일에 칠합니다.
   final List<_ScheduleBlock> blocks;
 
-  /// 연속 타임라인이 시작하는 날짜. 아래로 내리면 이 날짜부터 하루씩 이어집니다.
+  /// 화면에서 선택된 날짜.
   final DateTime baseDate;
+
+  /// 상세 타임라인 스크롤의 기준 날짜. 위아래로 이 날짜부터 하루씩 이어집니다.
+  final DateTime anchorDate;
+
+  /// 상세 타임라인의 날짜별 일정 블록.
+  final List<_ScheduleBlock> Function(DateTime date) blocksForDate;
+
+  /// 상세 타임라인을 스크롤해 맨 위에 걸린 날짜가 바뀌었을 때.
+  final ValueChanged<DateTime> onVisibleDateChanged;
   final ValueChanged<int> onBlockLongPress;
 
   /// 칠해 둔 시간대. start 는 포함, end 는 제외입니다.
@@ -975,6 +1086,9 @@ class _TimelineWorkspace extends StatefulWidget {
     super.key,
     required this.blocks,
     required this.baseDate,
+    required this.anchorDate,
+    required this.blocksForDate,
+    required this.onVisibleDateChanged,
     required this.onBlockLongPress,
     required this.selectionStartHour,
     required this.selectionEndHour,
@@ -1088,8 +1202,10 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
                                 minWidth: expandedWidth,
                                 maxWidth: expandedWidth,
                                 child: _DetailedTimeline(
-                                  blocks: widget.blocks,
-                                  baseDate: widget.baseDate,
+                                  anchorDate: widget.anchorDate,
+                                  selectedDate: widget.baseDate,
+                                  blocksForDate: widget.blocksForDate,
+                                  onVisibleDateChanged: widget.onVisibleDateChanged,
                                   // 접혀 있으면 납작한 레일에 가려 보이지 않으므로,
                                   // 그 위에서의 세로 드래그가 몰래 스크롤되지 않게 막습니다.
                                   scrollEnabled: t > 0,
@@ -1300,14 +1416,27 @@ class _CompactTimelineRail extends StatelessWidget {
 
 /// 시간 눈금과 일정 제목이 모두 보이는 상세 타임라인.
 ///
-/// 아래로 내리면 23시에서 끊기지 않고 다음 일자의 00시로 이어집니다.
+/// 23시에서 끊기지 않고 아래로는 다음 일자, 위로는 전날로 계속 이어집니다. (#57)
 /// 날짜가 바뀌는 자리마다 날짜 머리글이 들어갑니다.
-class _DetailedTimeline extends StatelessWidget {
+///
+/// 스크롤 0 은 [anchorDate] 의 날짜 머리글이 맨 위에 온 위치입니다. 화면 맨 위에 걸린 날짜가
+/// 바뀔 때마다(그날 머리글·00시가 맨 위로 올라오면) [onVisibleDateChanged] 로 알려,
+/// 화면의 선택 날짜도 그 날짜로 바꿀 수 있게 합니다.
+class _DetailedTimeline extends StatefulWidget {
   /// 하루가 차지하는 항목 수. 날짜 머리글 1개 + 24시간.
-  static const int _slotsPerDay = 25;
+  static const int slotsPerDay = 25;
 
-  final List<_ScheduleBlock> blocks;
-  final DateTime baseDate;
+  /// 하루가 차지하는 높이. 날짜 머리글([_TimelineDayHeader.height]) + 24시간.
+  static const double dayHeight =
+      _TimelineDayHeader.height + 24 * _kTimelineRowHeight;
+
+  /// 스크롤 0 의 기준 날짜. 달력으로 날짜를 바꿀 때만 바뀌며, 바뀌면 스크롤도 0 으로 돌아갑니다.
+  final DateTime anchorDate;
+
+  /// 화면에서 선택된 날짜. 강조 표시와 시간대 선택·일정 편집은 이 날짜에서만 받습니다.
+  final DateTime selectedDate;
+
+  final List<_ScheduleBlock> Function(DateTime date) blocksForDate;
 
   /// 타임라인이 접혀 보이지 않을 때는 스크롤을 잠급니다.
   final bool scrollEnabled;
@@ -1326,9 +1455,13 @@ class _DetailedTimeline extends StatelessWidget {
   final VoidCallback onHourDragEnd;
   final ValueChanged<int> onBlockLongPress;
 
+  /// 화면 맨 위에 걸린 날짜가 바뀌었을 때.
+  final ValueChanged<DateTime> onVisibleDateChanged;
+
   const _DetailedTimeline({
-    required this.blocks,
-    required this.baseDate,
+    required this.anchorDate,
+    required this.selectedDate,
+    required this.blocksForDate,
     required this.scrollEnabled,
     required this.selectionEnabled,
     required this.selectionStartHour,
@@ -1338,7 +1471,55 @@ class _DetailedTimeline extends StatelessWidget {
     required this.onHourDragUpdate,
     required this.onHourDragEnd,
     required this.onBlockLongPress,
+    required this.onVisibleDateChanged,
   });
+
+  @override
+  State<_DetailedTimeline> createState() => _DetailedTimelineState();
+}
+
+class _DetailedTimelineState extends State<_DetailedTimeline> {
+  final _scrollController = ScrollController();
+  final _centerKey = UniqueKey();
+
+  /// 마지막으로 알린 날짜(기준 날짜로부터 며칠째인지).
+  int _visibleDayOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(covariant _DetailedTimeline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 달력·HOME 으로 날짜를 바꾸면 새 날짜의 00시부터 보이게 되돌립니다. (#41)
+    // 스크롤로 넘어간 경우에는 기준 날짜가 그대로라 위치가 유지됩니다.
+    if (!_isSameDay(oldWidget.anchorDate, widget.anchorDate)) {
+      _visibleDayOffset = 0;
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final offset = visibleDayOffsetFor(_scrollController.offset);
+    if (offset == _visibleDayOffset) return;
+    _visibleDayOffset = offset;
+    widget.onVisibleDateChanged(_dateAt(offset));
+  }
+
+  DateTime _dateAt(int dayOffset) => DateTime(
+        widget.anchorDate.year,
+        widget.anchorDate.month,
+        widget.anchorDate.day + dayOffset,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -1348,60 +1529,84 @@ class _DetailedTimeline extends StatelessWidget {
         color: Colors.white,
         border: Border.all(color: AppColors.cardBorder),
       ),
-      child: ListView.builder(
-        // 날짜가 바뀌면 스크롤 위치를 새 날짜의 처음으로 되돌립니다. 키가 없으면 이전 날짜에서
-        // 내려 둔 위치(다음 일자 등)가 그대로 남아, 날짜를 바꿔도 타임라인이 그대로처럼 보입니다. (#41)
-        key: ValueKey(baseDate),
-        physics: scrollEnabled ? null : const NeverScrollableScrollPhysics(),
-        // itemCount를 주지 않아, 내리는 만큼 다음 일자가 계속 이어집니다.
-        itemBuilder: (context, index) {
-          final dayOffset = index ~/ _slotsPerDay;
-          final slot = index % _slotsPerDay;
-          final date = DateTime(
-            baseDate.year,
-            baseDate.month,
-            baseDate.day + dayOffset,
-          );
-
-          if (slot == 0) {
-            return _TimelineDayHeader(date: date, isBaseDate: dayOffset == 0);
-          }
-
-          final hourValue = slot - 1;
-          // 일정 데이터는 선택된 날짜 것만 있으므로 첫날에만 블록을 칠합니다.
-          final isBaseDate = dayOffset == 0;
-          final dayBlocks = isBaseDate ? blocks : const <_ScheduleBlock>[];
-          final block = _blockForHour(dayBlocks, hourValue);
-          // 블록이 시작하는 행에만 제목을 적어 겹쳐 보이지 않게 합니다.
-          final isBlockStart = block != null && block.startMinute ~/ 60 == hourValue;
-
-          // 화면의 나머지(할 일·수입지출·추가 폼)가 모두 선택된 날짜 기준이므로,
-          // 이어지는 다음 일자에는 일정을 만들 수 없게 둡니다.
-          final isSelected = isBaseDate &&
-              selectionStartHour != null &&
-              selectionEndHour != null &&
-              hourValue >= selectionStartHour! &&
-              hourValue < selectionEndHour!;
-
-          return _TimelineHourRow(
-            hour: hourValue,
-            block: block,
-            isBlockStart: isBlockStart,
-            isSelected: isSelected,
-            isSelectionStart: isSelected && hourValue == selectionStartHour,
-            // 이미 일정이 있는 칸은 선택 대상에서 빼고, 기존 롱프레스(편집)를 살립니다.
-            interactive: selectionEnabled && isBaseDate && block == null,
-            onTap: onHourTap,
-            onDragStart: onHourDragStart,
-            onDragUpdate: onHourDragUpdate,
-            onDragEnd: onHourDragEnd,
-            onBlockLongPress: onBlockLongPress,
-          );
-        },
+      // 기준 날짜를 가운데(center) 두고, 아래 목록은 다음 일자로, 위 목록은 전날로 끝없이 이어집니다.
+      child: CustomScrollView(
+        controller: _scrollController,
+        center: _centerKey,
+        physics: widget.scrollEnabled ? null : const NeverScrollableScrollPhysics(),
+        slivers: [
+          // 위쪽(전날들). center 위의 목록은 아래에서 위로 쌓이므로 index 0 이 전날 23시 칸입니다.
+          SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final dayOffset = -(index ~/ _DetailedTimeline.slotsPerDay) - 1;
+              final slot = _DetailedTimeline.slotsPerDay - 1 - index % _DetailedTimeline.slotsPerDay;
+              return _buildSlot(dayOffset, slot);
+            }),
+          ),
+          // 아래쪽(기준 날짜부터). index 0 이 기준 날짜의 머리글입니다.
+          SliverList(
+            key: _centerKey,
+            delegate: SliverChildBuilderDelegate((context, index) {
+              return _buildSlot(
+                index ~/ _DetailedTimeline.slotsPerDay,
+                index % _DetailedTimeline.slotsPerDay,
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
+
+  /// [dayOffset] 날의 [slot] 번째 칸. slot 0 은 날짜 머리글, 1~24 는 0~23시입니다.
+  Widget _buildSlot(int dayOffset, int slot) {
+    final date = _dateAt(dayOffset);
+    final isSelectedDate = _isSameDay(date, widget.selectedDate);
+
+    if (slot == 0) {
+      return _TimelineDayHeader(date: date, isBaseDate: isSelectedDate);
+    }
+
+    final hourValue = slot - 1;
+    final block = _blockForHour(widget.blocksForDate(date), hourValue);
+    // 블록이 시작하는 행에만 제목을 적어 겹쳐 보이지 않게 합니다.
+    final isBlockStart = block != null && block.startMinute ~/ 60 == hourValue;
+
+    // 화면의 나머지(할 일·수입지출·추가 폼)가 모두 선택된 날짜 기준이므로,
+    // 선택된 날짜에서만 시간대를 고르거나 일정 편집을 열 수 있게 둡니다.
+    final isSelected = isSelectedDate &&
+        widget.selectionStartHour != null &&
+        widget.selectionEndHour != null &&
+        hourValue >= widget.selectionStartHour! &&
+        hourValue < widget.selectionEndHour!;
+
+    return _TimelineHourRow(
+      hour: hourValue,
+      block: block,
+      isBlockStart: isBlockStart,
+      isSelected: isSelected,
+      isSelectionStart: isSelected && hourValue == widget.selectionStartHour,
+      // 이미 일정이 있는 칸은 선택 대상에서 빼고, 기존 롱프레스(편집)를 살립니다.
+      interactive: widget.selectionEnabled && isSelectedDate && block == null,
+      onTap: widget.onHourTap,
+      onDragStart: widget.onHourDragStart,
+      onDragUpdate: widget.onHourDragUpdate,
+      onDragEnd: widget.onHourDragEnd,
+      onBlockLongPress: isSelectedDate ? widget.onBlockLongPress : (_) {},
+    );
+  }
 }
+
+/// 스크롤 위치(기준 날짜 머리글이 맨 위일 때 0)에서 화면 맨 위에 걸린 날짜가
+/// 기준 날짜로부터 며칠째인지 계산합니다. 위로 올려 전날이 보이면 음수입니다.
+/// 그날의 머리글이 맨 위에 닿는 순간부터 그날로 칩니다.
+@visibleForTesting
+int visibleDayOffsetFor(double scrollOffset) =>
+    // 부동소수 오차로 경계에서 하루 앞 날짜가 잡히지 않도록 아주 조금 더해 줍니다.
+    ((scrollOffset + 0.5) / _DetailedTimeline.dayHeight).floor();
+
+bool _isSameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
 
 /// 상세 타임라인의 한 시간 칸.
 ///
@@ -1635,9 +1840,12 @@ class _TimelineDayHeader extends StatelessWidget {
     '일',
   ];
 
+  /// 머리글 높이. 스크롤 위치로 날짜를 계산할 때도 같은 값을 써야 하므로 상수로 둡니다.
+  static const double height = 26;
+
   final DateTime date;
 
-  /// 화면에서 선택된 날짜(첫날)인지. 이어지는 날짜와 구분해 표시합니다.
+  /// 화면에서 선택된 날짜인지. 앞뒤로 이어지는 날짜와 구분해 표시합니다.
   final bool isBaseDate;
 
   const _TimelineDayHeader({required this.date, required this.isBaseDate});
@@ -1649,7 +1857,7 @@ class _TimelineDayHeader extends StatelessWidget {
     final weekday = _weekdayLabels[date.weekday - 1];
 
     return Container(
-      height: 26,
+      height: height,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
