@@ -51,11 +51,11 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
     setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
-      final today = _dateStr(now);
+      final lastOfMonth = _dateStr(DateTime(now.year, now.month + 1, 0));
       final firstOfMonth = _dateStr(DateTime(now.year, now.month, 1));
 
       final results = await Future.wait([
-        AccountRecordApi.fetchByDateRange(firstOfMonth, today),
+        AccountRecordApi.fetchByDateRange(firstOfMonth, lastOfMonth),
         CategoryApi.fetchAll(),
         BudgetApi.fetch(year: now.year, month: now.month),
       ]);
