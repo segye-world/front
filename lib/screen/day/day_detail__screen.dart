@@ -551,22 +551,24 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     }
   }
 
-  Future<void> _addTodoToSection(int sectionId) async {
+  /// 입력칸의 글자로 할 일을 만듭니다. 저장에 실패하면 false 를 돌려주고 입력은 그대로 둡니다.
+  Future<bool> _addTodoToSection(int sectionId) async {
     final text = _newTodoController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty) return true;
     try {
       final todo = await TodoApi.create(
         label: text,
         date: _dateString,
         scheduleId: sectionId == 0 ? null : sectionId,
       );
-      if (!mounted) return;
+      if (!mounted) return true;
       setState(() {
         _sectionById(sectionId).items.add(
           _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
         );
         _newTodoController.clear();
       });
+      return true;
     } catch (e, stackTrace) {
       if (mounted) {
         showErrorSnackBar(
@@ -576,10 +578,18 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           stackTrace: stackTrace,
         );
       }
+      return false;
     }
   }
 
-  void _saveSectionEdits() {
+  /// 편집을 마칩니다. `+` 를 누르지 않고 입력칸에 남겨 둔 할 일도 먼저 저장합니다. (#70)
+  /// 그 저장이 실패하면 편집 모드와 입력을 유지해 다시 시도할 수 있게 합니다.
+  Future<void> _saveSectionEdits() async {
+    final sectionId = _editingSectionId;
+    if (sectionId != null) {
+      final saved = await _addTodoToSection(sectionId);
+      if (!saved || !mounted) return;
+    }
     setState(() {
       _editingSectionId = null;
       _newTodoController.clear();
@@ -701,12 +711,16 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         );
       }
 
-      final createdTodos = await Future.wait(_draftTodos.map(
+      // `+` 를 누르지 않고 입력칸에 남겨 둔 할 일도 함께 저장합니다. (#70, #88)
+      final todoLabels = scheduleTodosToSave(_draftTodos, _newTodoController.text);
+      final createdTodos = await Future.wait(todoLabels.map(
         (todo) => TodoApi.create(label: todo, date: _dateString, scheduleId: schedule.id),
       ));
 
       if (!mounted) return;
       setState(() {
+      _newTodoController.clear();
+      _draftTodos.clear();
       _scheduleBlocks.add(
         _ScheduleBlock(
           id: schedule.id,
@@ -1905,6 +1919,9 @@ class _TodoPanel extends StatelessWidget {
                       Expanded(
                         child: TextField(
                           controller: newTodoController,
+                          // 키보드의 완료(Enter)로도 바로 추가합니다.
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => onSectionTodoAdded(section.id),
                           decoration: const InputDecoration(
                             isDense: true,
                             hintText: '할 일 추가',
@@ -2202,6 +2219,9 @@ class _ScheduleAddPanel extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: todoController,
+                // 키보드의 완료(Enter)로도 칩으로 옮깁니다.
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => onDraftTodoAdded(),
                 decoration: const InputDecoration(
                   hintText: '할 일을 입력하세요',
                   border: UnderlineInputBorder(),
@@ -2422,6 +2442,15 @@ class _TodoItemState {
 @visibleForTesting
 DateTime scheduleTransactionTime(DateTime date, int startMinute) =>
     DateTime(date.year, date.month, date.day, 0, startMinute);
+
+/// 일정과 함께 저장할 할 일 목록입니다. 칩으로 옮긴 [drafts] 에, 입력칸에 남은 [pending] 을
+/// (공백만 있거나 이미 같은 칩이 있으면 빼고) 덧붙입니다.
+@visibleForTesting
+List<String> scheduleTodosToSave(List<String> drafts, String pending) {
+  final text = pending.trim();
+  if (text.isEmpty || drafts.contains(text)) return List.of(drafts);
+  return [...drafts, text];
+}
 
 /// 00:00부터의 분을 "HH:mm" 으로 적습니다. 1440 은 "24:00" 입니다.
 String _formatMinute(int minute) {
