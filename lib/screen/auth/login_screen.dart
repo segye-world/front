@@ -6,6 +6,7 @@ import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
 import '../../api/api_error.dart';
 import '../../services/notification_service.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/common/kakao_login_button.dart';
 import '../../widgets/template/auth_layout.dart';
 
@@ -71,6 +72,19 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
           const Spacer(flex: 2),
+          // 스토어 심사자처럼 카카오 계정 없이 안내받은 아이디로 로그인하는 경로.
+          Center(
+            child: TextButton(
+              onPressed: _isLoading
+                  ? null
+                  : () => Navigator.of(context).pushNamed(Routes.reviewLogin),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              child: const Text('다른 방법으로 로그인'),
+            ),
+          ),
         ],
       ),
     );

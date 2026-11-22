@@ -46,6 +46,29 @@ class AuthApi {
     return data is Map && data['isNewMember'] == true;
   }
 
+  /// 스토어 심사용 아이디·비밀번호로 로그인하고 서버 JWT 를 저장한다(back #18 review-login).
+  /// 처음 로그인이면 true 를 돌려준다. 서버에서 꺼져 있으면 404, 틀리면 401, 잠기면 429 다.
+  Future<bool> loginForReview({
+    required String loginId,
+    required String password,
+  }) async {
+    await _client.tokenStorage.clearAll();
+
+    final response = await _client.dio.post<Map<String, dynamic>>(
+      '${ApiConfig.apiPrefix}/auth/review-login',
+      data: {'loginId': loginId, 'password': password},
+    );
+
+    final tokens = SessionTokens.fromResponse(response.data);
+    await _client.tokenStorage.saveSession(tokens);
+    // 카카오 계정이 없으므로 서버가 만든 심사용 회원의 닉네임을 그대로 쓴다.
+    await _client.tokenStorage.saveNickname(reviewerNickname, tokens.sessionId);
+    final data = response.data?['data'];
+    return data is Map && data['isNewMember'] == true;
+  }
+
+  static const reviewerNickname = '심사자';
+
   Future<OAuthToken> _loginWithKakaoSdk() async {
     if (!KakaoConfig.isConfigured) {
       throw KakaoLoginFailed(
