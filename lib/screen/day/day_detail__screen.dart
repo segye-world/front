@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../../models/account_record_model.dart';
 import '../../models/schedule_model.dart';
 import '../../models/todo_model.dart';
+import '../../routes/routes.dart';
 import '../../services/account_record_api.dart';
 import '../../services/category_api.dart';
-import '../../services/finance_settings_api.dart';
 import '../../services/schedule_api.dart';
 import '../../services/todo_api.dart';
 import '../../theme/app_colors.dart';
@@ -235,7 +235,6 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
   Future<void> _loadFinanceData() async {
     try {
-      await FinanceSettingsApi.ensureDefaults();
       final results = await Future.wait([
         AccountRecordApi.fetchByDate(_dateString),
         CategoryApi.fetchAll(),
@@ -246,8 +245,16 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           ..clear()
           ..addAll(results[0] as List<AccountRecordModel>);
         _categories = results[1] as List<CategoryModel>;
-        _selectedFinanceCategory ??= _expenseCategories.firstOrNull;
-        _selectedSourceCategoryId ??= _incomeCategoryModels.firstOrNull?.id;
+        final activeCategories = _activeCategories;
+        if (!activeCategories.contains(_selectedFinanceCategory)) {
+          _selectedFinanceCategory = activeCategories.firstOrNull;
+        }
+        final sourceCategories = _incomeCategoryModels;
+        if (!sourceCategories.any(
+          (category) => category.id == _selectedSourceCategoryId,
+        )) {
+          _selectedSourceCategoryId = sourceCategories.firstOrNull?.id;
+        }
       });
     } catch (e, stackTrace) {
       if (mounted) {
@@ -647,8 +654,16 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       showAppSnackBar(
         context,
         requiresSourceCategory
-            ? '지출 카테고리와 지출 수단을 불러온 뒤 다시 시도해 주세요.'
-            : '수입원 카테고리를 불러온 뒤 다시 시도해 주세요.',
+            ? '지출 카테고리와 수입원을 먼저 추가해 주세요.'
+            : '수입원을 먼저 추가해 주세요.',
+        action: SnackBarAction(
+          label: '카테고리 관리',
+          onPressed: () async {
+            if (!mounted) return;
+            await Navigator.of(context).pushNamed(Routes.myExpenseCategory);
+            if (mounted) await _loadFinanceData();
+          },
+        ),
       );
       return;
     }
@@ -2185,6 +2200,11 @@ class _ScheduleAddPanel extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _FieldLabel(financeType == _FinanceType.expense ? '지출 카테고리' : '수입원 카테고리'),
+        if (activeCategories.isEmpty)
+          const Text(
+            '카테고리 관리에서 항목을 추가해 주세요.',
+            style: AppTextStyles.caption,
+          ),
         ...activeCategories.map(
           (category) => RadioListTile<String>(
             dense: true,
@@ -2201,14 +2221,20 @@ class _ScheduleAddPanel extends StatelessWidget {
         if (financeType == _FinanceType.expense) ...[
           const SizedBox(height: 12),
           const _FieldLabel('지출 수단'),
-          DropdownButtonFormField<int>(
-            value: selectedSourceCategoryId,
-            decoration: const InputDecoration(border: UnderlineInputBorder()),
-            items: sourceCategories
-                .map((source) => DropdownMenuItem(value: source.id, child: Text(source.name)))
-                .toList(),
-            onChanged: onSourceCategoryChanged,
-          ),
+          if (sourceCategories.isEmpty)
+            const Text(
+              '카테고리 관리에서 수입원을 추가해 주세요.',
+              style: AppTextStyles.caption,
+            )
+          else
+            DropdownButtonFormField<int>(
+              value: selectedSourceCategoryId,
+              decoration: const InputDecoration(border: UnderlineInputBorder()),
+              items: sourceCategories
+                  .map((source) => DropdownMenuItem(value: source.id, child: Text(source.name)))
+                  .toList(),
+              onChanged: onSourceCategoryChanged,
+            ),
         ],
         const _FieldLabel('메모'),
         TextField(

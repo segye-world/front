@@ -8,7 +8,6 @@ import '../../routes/routes.dart';
 import '../../services/account_record_api.dart';
 import '../../services/budget_api.dart';
 import '../../services/category_api.dart';
-import '../../services/finance_settings_api.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_radius.dart';
@@ -39,7 +38,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   int _monthIncome = 0;
   int _monthExpense = 0;
   bool _isLoading = true;
-  List<CategoryModel> _categories = [];
+  List<CategoryModel>? _categories;
   BudgetModel? _budget;
 
   @override
@@ -51,7 +50,6 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      await FinanceSettingsApi.ensureDefaults();
       final now = DateTime.now();
       final today = _dateStr(now);
       final firstOfMonth = _dateStr(DateTime(now.year, now.month, 1));
@@ -222,12 +220,24 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   }
 
   void _showAddTransactionDialog() {
+    final categories = _categories;
+    if (categories == null) {
+      showAppSnackBar(context, '카테고리를 불러온 뒤 다시 시도해 주세요.');
+      return;
+    }
     final expenseCategories =
-        _categories.where((category) => category.type == 'EXPENSE').toList();
+        categories.where((category) => category.type == 'EXPENSE').toList();
     final incomeCategories =
-        _categories.where((category) => category.type == 'INCOME').toList();
-    if (expenseCategories.isEmpty || incomeCategories.isEmpty) {
-      showAppSnackBar(context, '카테고리와 수입원을 먼저 추가해 주세요.');
+        categories.where((category) => category.type == 'INCOME').toList();
+    if (incomeCategories.isEmpty) {
+      showAppSnackBar(
+        context,
+        '수입·지출을 기록하려면 수입원을 먼저 추가해 주세요.',
+        action: SnackBarAction(
+          label: '카테고리 관리',
+          onPressed: _openCategoryManagement,
+        ),
+      );
       return;
     }
     showDialog<void>(
@@ -235,6 +245,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
       builder: (_) => _AddTransactionDialog(
         expenseCategories: expenseCategories,
         incomeCategories: incomeCategories,
+        onManageCategories: _openCategoryManagement,
         onSave: (amount, category, sourceCategory, isExpense, transactionTime, memo) async {
           try {
             await AccountRecordApi.create(
@@ -261,6 +272,12 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _openCategoryManagement() async {
+    if (!mounted) return;
+    await Navigator.of(context).pushNamed(Routes.myExpenseCategory);
+    if (mounted) await _loadData();
   }
 }
 
@@ -764,6 +781,7 @@ class _AddTransactionDialog extends StatefulWidget {
   final List<CategoryModel> expenseCategories;
   // 수입원(=지출 수단) 목록. 수입 추가에서는 카테고리로, 지출 추가에서는 지출 수단으로 쓰인다.
   final List<CategoryModel> incomeCategories;
+  final VoidCallback onManageCategories;
   final Future<void> Function(
     int amount,
     CategoryModel category,
@@ -776,6 +794,7 @@ class _AddTransactionDialog extends StatefulWidget {
   const _AddTransactionDialog({
     required this.expenseCategories,
     required this.incomeCategories,
+    required this.onManageCategories,
     required this.onSave,
   });
 
@@ -784,10 +803,10 @@ class _AddTransactionDialog extends StatefulWidget {
 }
 
 class _AddTransactionDialogState extends State<_AddTransactionDialog> {
-  bool _isExpense = true;
+  late bool _isExpense;
   final _amountCtrl = TextEditingController();
   final _memoCtrl = TextEditingController();
-  late CategoryModel _selectedCategory;
+  CategoryModel? _selectedCategory;
   CategoryModel? _selectedSourceCategory;
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
@@ -798,7 +817,8 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedCategory = widget.expenseCategories.first;
+    _isExpense = widget.expenseCategories.isNotEmpty;
+    _selectedCategory = _activeCategories.firstOrNull;
     _selectedSourceCategory = widget.incomeCategories.firstOrNull;
   }
 
@@ -814,7 +834,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   void _changeType(bool isExpense) {
     setState(() {
       _isExpense = isExpense;
-      _selectedCategory = _activeCategories.first;
+      _selectedCategory = _activeCategories.firstOrNull;
       if (isExpense) {
         _selectedSourceCategory ??= widget.incomeCategories.firstOrNull;
       }
@@ -851,6 +871,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   @override
   Widget build(BuildContext context) {
     final activeColor = _isExpense ? AppColors.expenseAccent : AppColors.incomeAccent;
+    final selectedCategory = _selectedCategory;
     return Dialog(
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -886,13 +907,22 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
               ]),
               const SizedBox(height: 18),
               _DialogLabel(_isExpense ? '지출 카테고리' : '수입원 카테고리'),
-              _FormDropdown<CategoryModel>(
-                icon: Icons.sell_outlined,
-                value: _selectedCategory,
-                items: _activeCategories,
-                labelOf: (category) => category.name,
-                onChanged: (category) => setState(() => _selectedCategory = category),
-              ),
+              if (selectedCategory != null)
+                _FormDropdown<CategoryModel>(
+                  icon: Icons.sell_outlined,
+                  value: selectedCategory,
+                  items: _activeCategories,
+                  labelOf: (category) => category.name,
+                  onChanged: (category) => setState(() => _selectedCategory = category),
+                )
+              else
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onManageCategories();
+                  },
+                  child: const Text('지출 카테고리 추가하기'),
+                ),
               if (_isExpense && _selectedSourceCategory != null) ...[
                 const SizedBox(height: 18),
                 const _DialogLabel('지출 수단'),
@@ -923,30 +953,32 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
               AppPrimaryButton(
                 backgroundColor: activeColor,
                 label: '기록 저장하기',
-                onPressed: () async {
-                  final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
-                  if (amount <= 0) {
-                    showAppSnackBar(context, '금액을 입력해 주세요.');
-                    return;
-                  }
-                  final transactionTime = DateTime(
-                    _selectedDate.year,
-                    _selectedDate.month,
-                    _selectedDate.day,
-                    _selectedTime.hour,
-                    _selectedTime.minute,
-                  );
-                  final memo = _memoCtrl.text.trim();
-                  Navigator.pop(context);
-                  await widget.onSave(
-                    amount,
-                    _selectedCategory,
-                    _isExpense ? _selectedSourceCategory : null,
-                    _isExpense,
-                    transactionTime,
-                    memo.isEmpty ? null : memo,
-                  );
-                },
+                onPressed: selectedCategory == null
+                    ? null
+                    : () async {
+                        final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
+                        if (amount <= 0) {
+                          showAppSnackBar(context, '금액을 입력해 주세요.');
+                          return;
+                        }
+                        final transactionTime = DateTime(
+                          _selectedDate.year,
+                          _selectedDate.month,
+                          _selectedDate.day,
+                          _selectedTime.hour,
+                          _selectedTime.minute,
+                        );
+                        final memo = _memoCtrl.text.trim();
+                        Navigator.pop(context);
+                        await widget.onSave(
+                          amount,
+                          selectedCategory,
+                          _isExpense ? _selectedSourceCategory : null,
+                          _isExpense,
+                          transactionTime,
+                          memo.isEmpty ? null : memo,
+                        );
+                      },
               ),
             ]),
           ),
