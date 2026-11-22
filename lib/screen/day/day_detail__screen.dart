@@ -221,11 +221,27 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   ///
   /// 날짜가 바뀌면 직전 날짜에서 불러온 값을 그대로 이어 쓰면 안 되므로,
   /// 캐시해 둔 마지막 조회 결과도 함께 비웁니다.
+  ///
+  /// 새 날짜의 조회가 끝나기 전(또는 실패했을 때) 이전 날짜의 일정 블록·할 일·수입지출이
+  /// 새 날짜 아래에 그대로 남아 보이지 않도록 화면 상태도 먼저 비웁니다. (#41)
   void _changeDate(DateTime date) {
     setState(() {
       _selectedDate = date;
       _lastLoadedSchedules = const [];
       _lastLoadedTodos = const [];
+      _scheduleBlocks.clear();
+      _sections
+        ..clear()
+        ..add(_TodoSectionState(
+          id: 0,
+          title: '일정 외 할일',
+          color: _defaultSectionColor,
+          items: [],
+        ));
+      _financeEntries.clear();
+      _editingSectionId = null;
+      _selectionAnchorHour = null;
+      _selectionFocusHour = null;
     });
     _loadFinanceData();
     _loadScheduleAndTodos();
@@ -235,12 +251,14 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
 
   Future<void> _loadFinanceData() async {
+    final date = _dateString;
     try {
       final results = await Future.wait([
-        AccountRecordApi.fetchByDate(_dateString),
+        AccountRecordApi.fetchByDate(date),
         CategoryApi.fetchAll(),
       ]);
-      if (!mounted) return;
+      // 기다리는 사이 날짜를 또 바꿨다면 늦게 도착한 이전 날짜 결과는 버립니다.
+      if (!mounted || date != _dateString) return;
       setState(() {
         _financeEntries
           ..clear()
@@ -282,21 +300,25 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     Object? firstError;
     StackTrace? firstStackTrace;
 
+    // 일정과 할 일을 같은 날짜로 묻도록 시작할 때의 날짜를 잡아 둡니다.
+    final date = _dateString;
+
     try {
-      schedules = await ScheduleApi.fetchByDate(_dateString);
+      schedules = await ScheduleApi.fetchByDate(date);
     } catch (e, stackTrace) {
       firstError = e;
       firstStackTrace = stackTrace;
     }
 
     try {
-      todos = await TodoApi.fetchByDate(_dateString);
+      todos = await TodoApi.fetchByDate(date);
     } catch (e, stackTrace) {
       firstError ??= e;
       firstStackTrace ??= stackTrace;
     }
 
-    if (!mounted) return;
+    // 기다리는 사이 날짜를 또 바꿨다면 늦게 도착한 이전 날짜 결과로 화면을 덮지 않습니다.
+    if (!mounted || date != _dateString) return;
 
     _lastLoadedSchedules = schedules;
     _lastLoadedTodos = todos;
@@ -871,6 +893,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           onHourTap: _onTimelineHourTap,
           onHourDragStart: _onTimelineHourDragStart,
           onHourDragUpdate: _onTimelineHourDragUpdate,
+          // 드래그를 놓으면 확인 바를 거치지 않고 바로 추가 폼을 엽니다. (#42)
+          onHourDragEnd: _startAddFromSelection,
           onSelectionCleared: _clearTimelineSelection,
           onSelectionConfirmed: _startAddFromSelection,
           panel: _buildDetailPanel(),
@@ -940,6 +964,8 @@ class _TimelineWorkspace extends StatefulWidget {
   final ValueChanged<int> onHourTap;
   final void Function(int hour, double localDy) onHourDragStart;
   final void Function(int originHour, double dyFromOrigin) onHourDragUpdate;
+  /// 롱프레스 드래그를 놓았을 때. 고른 구간으로 바로 추가 폼을 엽니다.
+  final VoidCallback onHourDragEnd;
   final VoidCallback onSelectionCleared;
   final VoidCallback onSelectionConfirmed;
 
@@ -955,6 +981,7 @@ class _TimelineWorkspace extends StatefulWidget {
     required this.onHourTap,
     required this.onHourDragStart,
     required this.onHourDragUpdate,
+    required this.onHourDragEnd,
     required this.onSelectionCleared,
     required this.onSelectionConfirmed,
     required this.panel,
@@ -1073,6 +1100,7 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
                                   onHourTap: widget.onHourTap,
                                   onHourDragStart: widget.onHourDragStart,
                                   onHourDragUpdate: widget.onHourDragUpdate,
+                                  onHourDragEnd: widget.onHourDragEnd,
                                   onBlockLongPress: widget.onBlockLongPress,
                                 ),
                               ),
@@ -1294,6 +1322,8 @@ class _DetailedTimeline extends StatelessWidget {
   final ValueChanged<int> onHourTap;
   final void Function(int hour, double localDy) onHourDragStart;
   final void Function(int originHour, double dyFromOrigin) onHourDragUpdate;
+  /// 롱프레스 드래그를 놓았을 때. 고른 구간으로 바로 추가 폼을 엽니다.
+  final VoidCallback onHourDragEnd;
   final ValueChanged<int> onBlockLongPress;
 
   const _DetailedTimeline({
@@ -1306,6 +1336,7 @@ class _DetailedTimeline extends StatelessWidget {
     required this.onHourTap,
     required this.onHourDragStart,
     required this.onHourDragUpdate,
+    required this.onHourDragEnd,
     required this.onBlockLongPress,
   });
 
@@ -1318,6 +1349,9 @@ class _DetailedTimeline extends StatelessWidget {
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: ListView.builder(
+        // 날짜가 바뀌면 스크롤 위치를 새 날짜의 처음으로 되돌립니다. 키가 없으면 이전 날짜에서
+        // 내려 둔 위치(다음 일자 등)가 그대로 남아, 날짜를 바꿔도 타임라인이 그대로처럼 보입니다. (#41)
+        key: ValueKey(baseDate),
         physics: scrollEnabled ? null : const NeverScrollableScrollPhysics(),
         // itemCount를 주지 않아, 내리는 만큼 다음 일자가 계속 이어집니다.
         itemBuilder: (context, index) {
@@ -1360,6 +1394,7 @@ class _DetailedTimeline extends StatelessWidget {
             onTap: onHourTap,
             onDragStart: onHourDragStart,
             onDragUpdate: onHourDragUpdate,
+            onDragEnd: onHourDragEnd,
             onBlockLongPress: onBlockLongPress,
           );
         },
@@ -1371,7 +1406,8 @@ class _DetailedTimeline extends StatelessWidget {
 /// 상세 타임라인의 한 시간 칸.
 ///
 /// 빈 칸은 탭하면 그 한 시간이 칠해지고, 길게 눌러 위아래로 끌면 여러 시간이
-/// 이어서 칠해집니다. 세로 드래그를 바로 쓰지 않고 롱프레스를 거치는 이유는
+/// 이어서 칠해지고, 손을 떼는 즉시 그 구간으로 일정 추가 폼이 열립니다.
+/// 세로 드래그를 바로 쓰지 않고 롱프레스를 거치는 이유는
 /// 타임라인이 ListView 안에 있어서, 그냥 드래그를 잡으면 스크롤이 죽기 때문입니다.
 class _TimelineHourRow extends StatelessWidget {
   final int hour;
@@ -1388,6 +1424,7 @@ class _TimelineHourRow extends StatelessWidget {
   final ValueChanged<int> onTap;
   final void Function(int hour, double localDy) onDragStart;
   final void Function(int originHour, double dyFromOrigin) onDragUpdate;
+  final VoidCallback onDragEnd;
   final ValueChanged<int> onBlockLongPress;
 
   const _TimelineHourRow({
@@ -1400,6 +1437,7 @@ class _TimelineHourRow extends StatelessWidget {
     required this.onTap,
     required this.onDragStart,
     required this.onDragUpdate,
+    required this.onDragEnd,
     required this.onBlockLongPress,
   });
 
@@ -1418,6 +1456,8 @@ class _TimelineHourRow extends StatelessWidget {
       onLongPressMoveUpdate: interactive
           ? (details) => onDragUpdate(hour, details.localOffsetFromOrigin.dy)
           : null,
+      // 손을 떼면 칠한 구간으로 바로 추가 폼을 엽니다. (#42)
+      onLongPressEnd: interactive ? (_) => onDragEnd() : null,
       child: Container(
         height: _kTimelineRowHeight,
         decoration: BoxDecoration(
