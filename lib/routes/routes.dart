@@ -1,6 +1,7 @@
 class Routes {
   static const session = '/session';
   static const login = '/login';
+  static const reviewLogin = '/review-login';
   static const main = '/main';
   static const dayDetail = '/day-detail';
   static const cashDetail = '/cash-detail';
