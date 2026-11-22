@@ -130,7 +130,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                        color: AppColors.primaryPink, strokeWidth: 2))
+                        color: AppColors.primary, strokeWidth: 2))
                 : categories == null
                 ? Center(
                     child: TextButton(
@@ -167,7 +167,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
               icon: const Icon(Icons.add, size: 16),
               label: const Text('추가', style: AppTextStyles.label),
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.primaryPink,
+                foregroundColor: AppColors.primary,
                 padding: EdgeInsets.zero,
               ),
             ),
@@ -239,7 +239,7 @@ class _CategoryRow extends StatelessWidget {
           IconButton(
             onPressed: onEdit,
             icon: const Icon(Icons.edit_outlined, size: 18,
-                color: AppColors.primaryPink),
+                color: AppColors.primary),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),

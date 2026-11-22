@@ -63,8 +63,8 @@ class _MyAppState extends State<MyApp> {
 
   ThemeData _buildTheme() {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primaryPink,
-      primary: AppColors.primaryPink,
+      seedColor: AppColors.primary,
+      primary: AppColors.primary,
       onPrimary: Colors.white,
     );
 
@@ -85,7 +85,7 @@ class _MyAppState extends State<MyApp> {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primaryPink,
+          backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           shape: buttonShape,
           textStyle: AppTextStyles.button,
@@ -93,13 +93,13 @@ class _MyAppState extends State<MyApp> {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.navyDark,
+          foregroundColor: AppColors.primary,
           side: const BorderSide(color: AppColors.cardBorder),
           shape: buttonShape,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: AppColors.navyDark),
+        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surface,

@@ -33,7 +33,7 @@ enum _DetailMode { todo, finance, add }
 enum _FinanceType { expense, income }
 
 class _DayDetailScreenState extends State<DayDetailScreen> {
-  static const _accentColor = AppColors.primaryPink;
+  static const _accentColor = AppColors.primary;
   static const _surfaceColor = AppColors.surface;
   static const _panelBorder = AppColors.cardBorder;
   /// 색을 지정하지 않은 할 일 섹션("일정 외 할일")의 기본 색.
@@ -459,6 +459,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     }
   }
 
+  /// 우측 패널이 일정 추가 폼이거나 할 일 섹션을 편집 중인지 여부.
+  bool get _isFormOpen => _detailMode == _DetailMode.add || _editingSectionId != null;
+
   void _openEditMode(int sectionId) {
     setState(() {
       _detailMode = _DetailMode.todo;
@@ -819,6 +822,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // 하단 바가 본문 위에 떠 있도록 본문을 바 뒤까지 늘립니다.
+      extendBody: true,
       backgroundColor: _surfaceColor,
       // 홈 화면이므로 뒤로가기 대신 날짜 선택용 캘린더를 엽니다.
       appBar: AppTopBar(
@@ -846,11 +851,15 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           panel: _buildDetailPanel(),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primaryPink,
-        onPressed: _prepareAddMode,
-        child: const Icon(Icons.add, size: AppIconSize.action, color: Colors.white),
-      ),
+      // 추가/편집 폼을 여는 동안에는 FAB 가 폼(카테고리 목록·저장 버튼)을 가리지 않도록 숨깁니다(#79).
+      // 위치는 Scaffold 가 떠 있는 하단 바 위로 자동으로 올려 줍니다.
+      floatingActionButton: _isFormOpen
+          ? null
+          : FloatingActionButton(
+              backgroundColor: AppColors.primary,
+              onPressed: _prepareAddMode,
+              child: const Icon(Icons.add, size: AppIconSize.action, color: Colors.white),
+            ),
       bottomNavigationBar: AppBottomNavBar(
         currentItem: AppNavItem.home,
         // 이 화면이 곧 홈이므로, HOME 탭을 다시 누르면 오늘 날짜로 되돌립니다.
@@ -1067,7 +1076,7 @@ class _TimelineWorkspaceState extends State<_TimelineWorkspace>
                                       height: 40,
                                       margin: const EdgeInsets.only(right: 2),
                                       decoration: BoxDecoration(
-                                        color: AppColors.primaryPink
+                                        color: AppColors.primary
                                             .withValues(alpha: 0.7),
                                         borderRadius: BorderRadius.circular(2),
                                       ),
@@ -1147,7 +1156,7 @@ class _PanelRevealHandle extends StatelessWidget {
         label: '할 일 / 수입지출 패널 열기',
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.primaryPinkTint,
+            color: AppColors.primaryTint,
             border: const Border(left: BorderSide(color: AppColors.cardBorder)),
             borderRadius: const BorderRadius.horizontal(
               left: Radius.circular(AppRadius.card),
@@ -1158,7 +1167,7 @@ class _PanelRevealHandle extends StatelessWidget {
           child: const Icon(
             Icons.chevron_left,
             size: 18,
-            color: AppColors.primaryPink,
+            color: AppColors.primary,
           ),
         ),
       ),
@@ -1500,7 +1509,7 @@ class _SelectionConfirmBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.caption.copyWith(
                 fontWeight: FontWeight.w700,
-                color: AppColors.navyDark,
+                color: AppColors.primary,
               ),
             ),
           ),
@@ -1554,7 +1563,7 @@ class _TimelineDayHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
-        color: isBaseDate ? AppColors.primaryPinkTint : AppColors.inputFill,
+        color: isBaseDate ? AppColors.primaryTint : AppColors.inputFill,
         border: const Border(
           top: BorderSide(color: AppColors.textTertiary, width: 1.2),
         ),
@@ -1563,7 +1572,7 @@ class _TimelineDayHeader extends StatelessWidget {
         '$month월 $day일 ($weekday)',
         style: AppTextStyles.small.copyWith(
           fontWeight: FontWeight.w700,
-          color: isBaseDate ? AppColors.navyDark : AppColors.navy,
+          color: AppColors.primary,
         ),
       ),
     );
@@ -1736,7 +1745,7 @@ class _PanelTabs extends StatelessWidget {
             color: isActive ? Colors.white : AppColors.background,
             border: Border(
               bottom: BorderSide(
-                color: isActive ? AppColors.navy : Colors.transparent,
+                color: isActive ? AppColors.primary : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -1929,7 +1938,7 @@ class _TodoRow extends StatelessWidget {
         visualDensity: VisualDensity.compact,
         contentPadding: EdgeInsets.zero,
         controlAffinity: ListTileControlAffinity.leading,
-        activeColor: AppColors.navy,
+        activeColor: AppColors.primary,
         value: item.isDone,
         onChanged: (checked) => onChanged(sectionId, item.id, checked),
         title: Text(
@@ -1987,7 +1996,7 @@ class _FinancePanel extends StatelessWidget {
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: AppColors.primaryPinkTint,
+            color: AppColors.primaryTint,
             border: Border.all(color: AppColors.cardBorder),
           ),
           child: Column(
@@ -1995,7 +2004,7 @@ class _FinancePanel extends StatelessWidget {
             children: [
               Container(
                 width: double.infinity,
-                color: AppColors.primaryPink,
+                color: AppColors.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 child: Text(
                   group.key,

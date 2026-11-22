@@ -15,7 +15,7 @@ class AppDialog extends StatelessWidget {
   final String confirmLabel;
   final VoidCallback? onConfirm;
 
-  /// 확인 버튼 배경색. 지정하지 않으면 테마 기본(핑크)을 따르고,
+  /// 확인 버튼 배경색. 지정하지 않으면 테마 기본(군청)을 따르고,
   /// 삭제/탈퇴처럼 위험한 동작일 때만 강조색으로 덮어씁니다.
   final Color? confirmColor;
 

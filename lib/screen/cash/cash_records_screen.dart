@@ -20,8 +20,8 @@ class CashRecordsScreen extends StatefulWidget {
 }
 
 class _CashRecordsScreenState extends State<CashRecordsScreen> {
-  static const _primaryPink = AppColors.primaryPink;
-  static const _lineNavy = AppColors.navyDark;
+  static const _primary = AppColors.primary;
+  static const _lineColor = AppColors.primary;
 
   late DateTime _visibleMonth;
   _RecordFilter _filter = _RecordFilter.expense;
@@ -168,6 +168,8 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
     final isEmpty = filtered.isEmpty;
 
     return Scaffold(
+      // 하단 바가 본문 위에 떠 있도록 본문을 바 뒤까지 늘립니다.
+      extendBody: true,
       backgroundColor: Colors.white,
       appBar: AppTopBar(
         title: _isSelectionMode ? '${_selectedIds.length}개 선택' : '전체 보기',
@@ -192,7 +194,7 @@ class _CashRecordsScreenState extends State<CashRecordsScreen> {
           children: [
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: _primaryPink, strokeWidth: 2))
+                  ? const Center(child: CircularProgressIndicator(color: _primary, strokeWidth: 2))
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
                       children: [
@@ -320,12 +322,12 @@ class _FilterTabs extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 8),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: isSelected ? _CashRecordsScreenState._lineNavy : AppColors.cardBorder, width: 1)),
+              border: Border(bottom: BorderSide(color: isSelected ? _CashRecordsScreenState._lineColor : AppColors.cardBorder, width: 1)),
             ),
             child: Text(
               filter.label,
               style: TextStyle(
-                color: isSelected ? _CashRecordsScreenState._lineNavy : AppColors.textSecondary,
+                color: isSelected ? _CashRecordsScreenState._lineColor : AppColors.textSecondary,
                 fontSize: AppTextStyles.body.fontSize,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
@@ -362,7 +364,7 @@ class _ViewModeToggle extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected ? _CashRecordsScreenState._primaryPink : Colors.transparent,
+                color: isSelected ? _CashRecordsScreenState._primary : Colors.transparent,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Text(
@@ -562,7 +564,7 @@ class _RecordRowState extends State<_RecordRow> {
       onTapCancel: _cancelHold,
       onTap: _handleTap,
       child: Container(
-        color: widget.isSelected ? AppColors.primaryPinkTint : Colors.transparent,
+        color: widget.isSelected ? AppColors.primaryTint : Colors.transparent,
         padding: const EdgeInsets.only(bottom: 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -573,7 +575,7 @@ class _RecordRowState extends State<_RecordRow> {
                 child: Icon(
                   widget.isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
                   size: 20,
-                  color: widget.isSelected ? AppColors.primaryPink : AppColors.textTertiary,
+                  color: widget.isSelected ? AppColors.primary : AppColors.textTertiary,
                 ),
               ),
             ],
@@ -583,7 +585,7 @@ class _RecordRowState extends State<_RecordRow> {
                 children: [
                   Text(
                     record.categoryName,
-                    style: TextStyle(color: _CashRecordsScreenState._lineNavy, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: _CashRecordsScreenState._lineColor, fontSize: AppTextStyles.caption.fontSize, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   Text(_formatDateTime(record.transactionTime), style: AppTextStyles.caption),
@@ -644,7 +646,7 @@ void _showRecordDetail(BuildContext context, AccountRecordModel record) {
                   Expanded(
                     child: Text(
                       record.categoryName,
-                      style: AppTextStyles.title.copyWith(color: _CashRecordsScreenState._lineNavy),
+                      style: AppTextStyles.title.copyWith(color: _CashRecordsScreenState._lineColor),
                     ),
                   ),
                   Text(
@@ -666,7 +668,7 @@ void _showRecordDetail(BuildContext context, AccountRecordModel record) {
               const SizedBox(height: 14),
               const Divider(height: 1, color: AppColors.cardBorder),
               const SizedBox(height: 14),
-              Text('메모', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashRecordsScreenState._lineNavy)),
+              Text('메모', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashRecordsScreenState._lineColor)),
               const SizedBox(height: 6),
               Text(
                 record.memo != null && record.memo!.isNotEmpty ? record.memo! : '메모가 없습니다.',
@@ -701,7 +703,7 @@ class _DetailRow extends StatelessWidget {
         Expanded(
           child: Text(
             value,
-            style: AppTextStyles.body.copyWith(color: _CashRecordsScreenState._lineNavy, fontWeight: FontWeight.w600),
+            style: AppTextStyles.body.copyWith(color: _CashRecordsScreenState._lineColor, fontWeight: FontWeight.w600),
           ),
         ),
       ],

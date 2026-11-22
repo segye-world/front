@@ -56,6 +56,9 @@ class BaseScaffold extends StatelessWidget {
     }
 
     return Scaffold(
+      // 하단 바(Liquid Glass)가 본문 위에 떠 있도록 본문을 바 뒤까지 늘립니다.
+      // 본문은 SafeArea 가 바 높이만큼 비켜 줍니다.
+      extendBody: true,
       backgroundColor: backgroundColor,
       appBar: appBar ?? (title != null ? AppTopBar(title: title!) : null),
       body: content,

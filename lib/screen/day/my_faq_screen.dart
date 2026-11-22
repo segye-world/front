@@ -98,7 +98,7 @@ class _FaqTileState extends State<_FaqTile> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
-                  const Text('Q. ', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryPink)),
+                  const Text('Q. ', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary)),
                   Expanded(
                     child: Text(
                       widget.item.question,

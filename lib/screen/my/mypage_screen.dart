@@ -86,6 +86,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
     final displayName = _nickname.isEmpty ? '온하루 사용자' : _nickname;
 
     return Scaffold(
+      // 하단 바가 본문 위에 떠 있도록 본문을 바 뒤까지 늘립니다.
+      extendBody: true,
       backgroundColor: Colors.white,
       appBar: const AppTopBar(title: 'MY PAGE', showBack: false),
       body: SafeArea(

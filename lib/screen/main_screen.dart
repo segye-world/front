@@ -16,7 +16,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   static const _userName = '세계';
-  static const _primaryPink = AppColors.primaryPink;
+  static const _primary = AppColors.primary;
   static final DateTime _initialDate = DateTime(2025, 9, 9);
 
   late DateTime _selectedDate = _initialDate;
@@ -32,9 +32,9 @@ class _MainScreenState extends State<MainScreen> {
 
   DatePickerThemeData _buildDatePickerTheme() {
     return DatePickerThemeData(
-      // ✅ 선택된 날짜: 핑크 원형 + 흰 글자 (Flutter 3.35: WidgetStateProperty)
+      // ✅ 선택된 날짜: 군청 원형 + 흰 글자 (Flutter 3.35: WidgetStateProperty)
       dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return _primaryPink;
+        if (states.contains(WidgetState.selected)) return _primary;
         return null;
       }),
       dayForegroundColor: WidgetStateProperty.resolveWith((states) {
@@ -43,11 +43,11 @@ class _MainScreenState extends State<MainScreen> {
         return AppColors.textPrimary;
       }),
 
-      // ✅ 오늘 날짜: 핑크 테두리 + 글자색
-      todayBorder: const BorderSide(width: 1.6, color: _primaryPink),
+      // ✅ 오늘 날짜: 군청 테두리 + 글자색
+      todayBorder: const BorderSide(width: 1.6, color: _primary),
       todayForegroundColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return Colors.white;
-        return _primaryPink;
+        return _primary;
       }),
 
       // ✅ 요일/일자/헤더 스타일(선택 색 가시성에 도움)
@@ -62,7 +62,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final themed = Theme.of(context).copyWith(
       colorScheme: Theme.of(context).colorScheme.copyWith(
-        primary: _primaryPink,
+        primary: _primary,
         onPrimary: Colors.white,
         onSurface: AppColors.textPrimary,
       ),
@@ -70,6 +70,8 @@ class _MainScreenState extends State<MainScreen> {
     );
 
     return Scaffold(
+      // 하단 바가 본문 위에 떠 있도록 본문을 바 뒤까지 늘립니다.
+      extendBody: true,
       backgroundColor: AppColors.background,
       appBar: const AppTopBar(title: 'HOME', showBack: false),
       body: SafeArea(
@@ -133,7 +135,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     const SizedBox(height: 8),
                     _CategoryTabs(
-                      primaryPink: _primaryPink,
+                      accentColor: _primary,
                       selectedTab: _selectedTab,
                       onTabSelected: (tab) {
                         setState(() => _selectedTab = tab);
@@ -174,12 +176,12 @@ class _MainScreenState extends State<MainScreen> {
 enum _MainTab { schedule, todo, consumption }
 
 class _CategoryTabs extends StatelessWidget {
-  final Color primaryPink;
+  final Color accentColor;
   final _MainTab selectedTab;
   final ValueChanged<_MainTab> onTabSelected;
 
   const _CategoryTabs({
-    required this.primaryPink,
+    required this.accentColor,
     required this.selectedTab,
     required this.onTabSelected,
   });
@@ -191,21 +193,21 @@ class _CategoryTabs extends StatelessWidget {
         _TabChip(
           label: '일정',
           isActive: selectedTab == _MainTab.schedule,
-          activeColor: primaryPink,
+          activeColor: accentColor,
           onTap: () => onTabSelected(_MainTab.schedule),
         ),
         const SizedBox(width: 16),
         _TabChip(
           label: '할 일',
           isActive: selectedTab == _MainTab.todo,
-          activeColor: primaryPink,
+          activeColor: accentColor,
           onTap: () => onTabSelected(_MainTab.todo),
         ),
         const SizedBox(width: 16),
         _TabChip(
           label: '소비',
           isActive: selectedTab == _MainTab.consumption,
-          activeColor: primaryPink,
+          activeColor: accentColor,
           onTap: () => onTabSelected(_MainTab.consumption),
         ),
       ],
@@ -361,7 +363,7 @@ class _TodoItemTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.primaryPink.withValues(alpha: 0.12),
+        color: AppColors.primaryTint,
         borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: Row(

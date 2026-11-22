@@ -9,6 +9,8 @@ import 'package:segye_world/screen/day/my_notification_setting_screen.dart';
 import 'package:segye_world/screen/day/my_profile_manage_screen.dart';
 import 'package:segye_world/screen/main_screen.dart';
 import 'package:segye_world/screen/my/mypage_screen.dart';
+import 'package:segye_world/theme/app_colors.dart';
+import 'package:segye_world/theme/app_glass.dart';
 import 'package:segye_world/widgets/template/bottom_nav_layout.dart';
 
 /// 하단 바를 가진 화면과, 각 화면에서 선택돼 있어야 하는 탭.
@@ -47,22 +49,43 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // 공용 바가 정확히 하나 있고,
-      expect(find.byType(AppBottomNavBar), findsOneWidget);
-      expect(find.byType(BottomNavigationBar), findsOneWidget);
-
-      // 세 탭이 일정 상세 화면과 같은 구성(아이콘 + 라벨)이며,
-      expect(find.text('CASH'), findsOneWidget);
-      expect(find.text('HOME'), findsOneWidget);
-      expect(find.text('MYPAGE'), findsOneWidget);
-      expect(find.byIcon(Icons.wallet), findsOneWidget);
-      expect(find.byIcon(Icons.person), findsOneWidget);
-
-      // 현재 화면에 맞는 탭이 선택돼 있습니다.
-      final bar = tester.widget<BottomNavigationBar>(
-        find.byType(BottomNavigationBar),
+      final barFinder = find.byType(AppBottomNavBar);
+      expect(barFinder, findsOneWidget);
+      expect(
+        tester.widget<AppBottomNavBar>(barFinder).currentItem,
+        expectedItem,
       );
-      expect(bar.currentIndex, expectedItem.index);
-      expect(bar.backgroundColor, AppBottomNavBar.barColor);
+
+      // 유리(Liquid Glass) 형태로 그려지고,
+      expect(
+        find.descendant(of: barFinder, matching: find.byType(BackdropFilter)),
+        AppGlass.useBlur ? findsOneWidget : findsNothing,
+      );
+
+      // 세 탭이 같은 구성(아이콘 + 라벨)이며,
+      // (라벨은 굵기 변화로 글자가 움직이지 않도록 자리 잡기용 사본이 하나 더 있습니다.)
+      for (final label in ['CASH', 'HOME', 'MYPAGE']) {
+        expect(
+          find.descendant(of: barFinder, matching: find.text(label)),
+          findsWidgets,
+        );
+      }
+
+      // 현재 화면에 맞는 탭만 브랜드 색으로 선택돼 있습니다.
+      const icons = {
+        AppNavItem.cash: Icons.wallet,
+        AppNavItem.home: Icons.home,
+        AppNavItem.mypage: Icons.person,
+      };
+      for (final MapEntry(key: item, value: icon) in icons.entries) {
+        final iconWidget = tester.widget<Icon>(
+          find.descendant(of: barFinder, matching: find.byIcon(icon)),
+        );
+        expect(
+          iconWidget.color,
+          item == expectedItem ? AppColors.primary : AppColors.textSecondary,
+        );
+      }
     });
   }
 }
