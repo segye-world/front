@@ -1,4 +1,5 @@
 class Routes {
+  static const session = '/session';
   static const login = '/login';
   static const main = '/main';
   static const dayDetail = '/day-detail';
