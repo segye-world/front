@@ -257,7 +257,7 @@ class _NotificationTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: AppColors.primaryPink),
+            Icon(icon, size: 20, color: AppColors.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -281,7 +281,7 @@ class _NotificationTile extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryPinkTint,
+                            color: AppColors.primaryTint,
                             borderRadius: BorderRadius.circular(
                               AppRadius.button,
                             ),
@@ -289,7 +289,7 @@ class _NotificationTile extends StatelessWidget {
                           child: Text(
                             badge!,
                             style: AppTextStyles.tiny.copyWith(
-                              color: AppColors.navyDark,
+                              color: AppColors.primary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -305,7 +305,7 @@ class _NotificationTile extends StatelessWidget {
             Switch(
               value: value,
               onChanged: onChanged,
-              activeThumbColor: AppColors.primaryPink,
+              activeThumbColor: AppColors.primary,
             ),
           ],
         ),

@@ -42,7 +42,7 @@ class AppTextStyles {
   static const TextStyle label = TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w600,
-    color: AppColors.navyDark,
+    color: AppColors.primary,
   );
 
   // ── 위 5단계로 묶이지 않는 크기들 ──────────────────────────────────────

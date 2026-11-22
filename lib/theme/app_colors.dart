@@ -2,29 +2,29 @@ import 'package:flutter/material.dart';
 
 /// 앱 전체에서 공유하는 색상 토큰.
 ///
-/// 화면마다 제각각 하드코딩되어 있던 핑크/네이비/회색 계열 색상을 여기 하나로
+/// 화면마다 제각각 하드코딩되어 있던 브랜드/회색 계열 색상을 여기 하나로
 /// 모아, 새 화면을 만들거나 기존 화면을 고칠 때 항상 이 상수만 참조하도록 합니다.
 class AppColors {
   AppColors._();
 
   // ── 브랜드 컬러 ────────────────────────────────────────────────────────
-  /// 앱의 메인 포인트 컬러. 기존에 F7A5A5 / F3A3A4 / FFA4A9 로 흩어져 있던
-  /// 핑크 계열을 이 값 하나로 통일합니다.
-  static const Color primaryPink = Color(0xFFF7A5A5);
+  /// 앱의 메인 포인트 컬러(군청). 버튼, 선택 상태, 상단바 제목·아이콘, 보조 라벨 등
+  /// 강조가 필요한 곳에 씁니다.
+  ///
+  /// 통일 이력
+  /// - 분홍 계열(F7A5A5 / F3A3A4 / FFA4A9, 구 `primaryPink`)을 이 값으로 바꿨습니다.
+  /// - 보조 네이비(6F7A9B, 구 `navy`)와 짙은 네이비(4F5E82, 구 `navyDark`.
+  ///   그 전에는 53627D / 667195 / 7886A8 / 2F4B7C)를 이 값 하나로 합쳤습니다.
+  static const Color primary = Color(0xFF5D688A);
 
-  /// 보조 네이비. 선택 상태, 체크박스 활성색 등 "포인트가 아닌 강조"에 씁니다.
-  static const Color navy = Color(0xFF6F7A9B);
-
-  /// 핑크의 아주 옅은 배경 톤. 강조 배너/선택 표시 배경 등에 씁니다.
-  /// 기존 FFF1F1 / FFF4F4 를 통일합니다.
-  static const Color primaryPinkTint = Color(0xFFFFF1F1);
-
-  /// 텍스트/라인용 짙은 네이비. 상단바 타이틀, 보조 라벨 등에 씁니다.
-  /// 기존 53627D / 667195 / 4F5E82 / 7886A8 / 2F4B7C 를 이 값으로 통일합니다.
-  static const Color navyDark = Color(0xFF4F5E82);
+  /// [primary]의 아주 옅은 배경 톤. 선택된 탭·강조 배너·선택 표시 배경 등에 씁니다.
+  /// 기존 분홍 배경 톤(FFF1F1 / FFF4F4, 구 `primaryPinkTint`)을 대체합니다.
+  /// [primary] 글자를 이 배경 위에 올리면 대비가 약 5:1 입니다.
+  static const Color primaryTint = Color(0xFFEEF0F5);
 
   // ── 배경 / 표면 ────────────────────────────────────────────────────────
-  static const Color background = Color(0xFFF5F5F5);
+  /// 화면 기본 배경. 기존 F5F5F5 에서 흰색으로 바꿨습니다.
+  static const Color background = Color(0xFFFFFFFF);
   static const Color surface = Colors.white;
 
   /// 입력창(TextField) 채움색. 기존 F8F9FB / F7F7F7 를 통일합니다.
@@ -32,8 +32,9 @@ class AppColors {
 
   // ── 테두리 ────────────────────────────────────────────────────────────
   /// 카드/컨테이너 테두리. 기존 EEE0E0 / DCD6D6 / E6DCDD / E1C9CC / E0E0E0 /
-  /// E2E2E2 / EEEEEE / E7E7E7 를 이 값 하나로 통일합니다.
-  static const Color cardBorder = Color(0xFFE6E6E6);
+  /// E2E2E2 / EEEEEE / E7E7E7 를 이 값 하나로 통일했고, 군청 브랜드 색에 맞춰
+  /// E6E6E6 에서 푸른 기가 도는 E7E9EF 로 바꿨습니다.
+  static const Color cardBorder = Color(0xFFE7E9EF);
 
   /// 입력창 테두리. 카드 테두리와 역할이 달라 별도 토큰으로 둡니다.
   /// 기존 E0E3E8 / D2D7E2 를 통일합니다.

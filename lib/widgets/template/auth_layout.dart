@@ -56,7 +56,7 @@ class AuthSymbol extends StatelessWidget {
           end: Alignment.bottomCenter,
         ),
       ),
-      child: Icon(icon, size: 50, color: AppColors.navyDark),
+      child: Icon(icon, size: 50, color: AppColors.primary),
     );
   }
 }

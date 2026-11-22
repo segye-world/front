@@ -26,8 +26,8 @@ class CashDetailScreen extends StatefulWidget {
 }
 
 class _CashDetailScreenState extends State<CashDetailScreen> {
-  static const _primaryPink = AppColors.primaryPink;
-  static const _lineNavy = AppColors.navyDark;
+  static const _primary = AppColors.primary;
+  static const _lineColor = AppColors.primary;
   static const _green = AppColors.incomeAccent;
   static const _red = AppColors.expenseAccent;
   static const _blue = AppColors.chartBlue;
@@ -105,6 +105,8 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // 하단 바가 본문 위에 떠 있도록 본문을 바 뒤까지 늘립니다.
+      extendBody: true,
       backgroundColor: Colors.white,
       appBar: const AppTopBar(title: '소비 상세 페이지', showBack: false),
       body: SafeArea(
@@ -112,7 +114,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
           children: [
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: _primaryPink, strokeWidth: 2))
+                  ? const Center(child: CircularProgressIndicator(color: _primary, strokeWidth: 2))
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
                       children: [
@@ -121,7 +123,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
                             Expanded(
                               child: _TopActionButton(
                                 label: '+ 수입·지출 추가',
-                                backgroundColor: _primaryPink,
+                                backgroundColor: _primary,
                                 textColor: Colors.white,
                                 onTap: _showAddTransactionDialog,
                               ),
@@ -131,7 +133,7 @@ class _CashDetailScreenState extends State<CashDetailScreen> {
                               child: _TopActionButton(
                                 label: '전체 보기',
                                 backgroundColor: Colors.white,
-                                textColor: _lineNavy,
+                                textColor: _lineColor,
                                 onTap: () => _openAllRecords(context),
                               ),
                             ),
@@ -304,7 +306,7 @@ class _TopActionButton extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: backgroundColor,
-          border: Border.all(color: _CashDetailScreenState._lineNavy, width: 1),
+          border: Border.all(color: _CashDetailScreenState._lineColor, width: 1),
           borderRadius: BorderRadius.circular(AppRadius.card),
         ),
         child: Text(label, style: AppTextStyles.body.copyWith(color: textColor, fontWeight: FontWeight.w700)),
@@ -333,7 +335,7 @@ class _MonthlySummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: _CashDetailScreenState._lineNavy, width: 1),
+        border: Border.all(color: _CashDetailScreenState._lineColor, width: 1),
         borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: Column(
@@ -341,9 +343,9 @@ class _MonthlySummaryCard extends StatelessWidget {
         children: [
           Icon(chartIcon, size: 18, color: accentColor),
           const Spacer(),
-          Text(title, style: AppTextStyles.small.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
+          Text(title, style: AppTextStyles.small.copyWith(color: _CashDetailScreenState._lineColor, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(_formatWon(amount), style: AppTextStyles.subtitle.copyWith(color: _CashDetailScreenState._lineNavy)),
+          Text(_formatWon(amount), style: AppTextStyles.subtitle.copyWith(color: _CashDetailScreenState._lineColor)),
         ],
       ),
     );
@@ -364,7 +366,7 @@ class _OutlinedSection extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: _CashDetailScreenState._lineNavy, width: 1),
+        border: Border.all(color: _CashDetailScreenState._lineColor, width: 1),
         borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: child,
@@ -388,9 +390,9 @@ class _CategoryExpenseChart extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.credit_card, size: 16, color: _CashDetailScreenState._lineNavy),
+            const Icon(Icons.credit_card, size: 16, color: _CashDetailScreenState._lineColor),
             const SizedBox(width: 6),
-            Text('카테고리별 지출', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
+            Text('카테고리별 지출', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineColor, fontWeight: FontWeight.w700)),
           ],
         ),
         const SizedBox(height: 20),
@@ -461,7 +463,7 @@ class _CategoryPieChart extends StatelessWidget {
                   Text('합계', style: AppTextStyles.tiny.copyWith(color: AppColors.textTertiary)),
                   Text(
                     _formatWon(total),
-                    style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
+                    style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineColor),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -530,13 +532,13 @@ class _CategoryLegendRow extends StatelessWidget {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.small.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700),
+            style: AppTextStyles.small.copyWith(color: _CashDetailScreenState._lineColor, fontWeight: FontWeight.w700),
           ),
         ),
         const SizedBox(width: 6),
         Text('$percent%', style: AppTextStyles.tiny.copyWith(color: AppColors.textTertiary)),
         const SizedBox(width: 6),
-        Text(_formatWon(amount), style: AppTextStyles.tiny.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w600)),
+        Text(_formatWon(amount), style: AppTextStyles.tiny.copyWith(color: _CashDetailScreenState._lineColor, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -556,7 +558,7 @@ class _RecentRecords extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('최근 거래', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
+            Text('최근 거래', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineColor, fontWeight: FontWeight.w700)),
             InkWell(onTap: onViewAll, child: const Text('전체 보기', style: AppTextStyles.label)),
           ],
         ),
@@ -588,7 +590,7 @@ class _RecentRecordTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(record.categoryName, style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
+                Text(record.categoryName, style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineColor, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(
                   record.memo != null && record.memo!.isNotEmpty
@@ -637,9 +639,9 @@ class _BudgetGoalSection extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.flag_outlined, size: 16, color: _CashDetailScreenState._lineNavy),
+                const Icon(Icons.flag_outlined, size: 16, color: _CashDetailScreenState._lineColor),
                 const SizedBox(width: 6),
-                Text('이번 달 지출 목표', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineNavy, fontWeight: FontWeight.w700)),
+                Text('이번 달 지출 목표', style: AppTextStyles.caption.copyWith(color: _CashDetailScreenState._lineColor, fontWeight: FontWeight.w700)),
               ],
             ),
             InkWell(
@@ -668,7 +670,7 @@ class _BudgetGoalSection extends StatelessWidget {
                   children: [
                     Text(
                       '${_formatWon(monthExpense)} / ${_formatWon(limit)}',
-                      style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineNavy),
+                      style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: _CashDetailScreenState._lineColor),
                     ),
                     Text(
                       isOverBudget ? '${_formatWon(-remaining)} 초과' : '${_formatWon(remaining)} 남음',
@@ -690,7 +692,7 @@ class _BudgetGoalSection extends StatelessWidget {
 
 /// 목표 대비 지출 막대.
 ///
-/// 목표 이내일 때는 지출한 만큼만 핑크로 채우고 나머지는 빈 트랙으로 둡니다.
+/// 목표 이내일 때는 지출한 만큼만 브랜드 색으로 채우고 나머지는 빈 트랙으로 둡니다.
 /// 목표를 넘으면 "얼마나 넘었는지"가 그대로 드러나야 하므로, 막대 전체 폭을
 /// 지출액 기준으로 다시 잡고 목표까지는 회색, 넘은 만큼은 빨간색으로 이어 붙입니다.
 class _BudgetProgressBar extends StatelessWidget {
@@ -709,7 +711,7 @@ class _BudgetProgressBar extends StatelessWidget {
       segments.add(Expanded(flex: spent - limit, child: Container(color: _CashDetailScreenState._red)));
     } else {
       if (spent > 0) {
-        segments.add(Expanded(flex: spent, child: Container(color: _CashDetailScreenState._primaryPink)));
+        segments.add(Expanded(flex: spent, child: Container(color: _CashDetailScreenState._primary)));
       }
       final remaining = limit - spent;
       if (remaining > 0) {
@@ -1021,7 +1023,7 @@ class _PickerField extends StatelessWidget {
           border: Border.all(color: AppColors.inputBorder),
         ),
         child: Row(children: [
-          Icon(icon, size: 16, color: AppColors.navyDark),
+          Icon(icon, size: 16, color: AppColors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1067,7 +1069,7 @@ class _FormDropdown<T> extends StatelessWidget {
         decoration: InputDecoration(
           border: InputBorder.none,
           isDense: true,
-          prefixIcon: Icon(icon, size: 18, color: AppColors.navyDark),
+          prefixIcon: Icon(icon, size: 18, color: AppColors.primary),
         ),
         style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
         items: items
