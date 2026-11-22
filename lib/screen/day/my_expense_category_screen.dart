@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../models/account_record_model.dart';
 import '../../services/category_api.dart';
-import '../../services/finance_settings_api.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
@@ -19,7 +18,7 @@ class MyExpenseCategoryScreen extends StatefulWidget {
 }
 
 class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
-  List<CategoryModel> _categories = [];
+  List<CategoryModel>? _categories;
   bool _isLoading = true;
 
   @override
@@ -29,9 +28,9 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
   }
 
   Future<void> _loadCategories() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      await FinanceSettingsApi.ensureDefaults();
       final categories = await CategoryApi.fetchAll();
       if (!mounted) return;
       setState(() => _categories = categories);
@@ -54,7 +53,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
       context: context,
       builder: (_) => _CategoryFormDialog(initialType: type),
     );
-    if (result == null) return;
+    if (result == null || !mounted) return;
     try {
       await CategoryApi.create(name: result.name, type: result.type);
       await _loadCategories();
@@ -75,7 +74,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
       context: context,
       builder: (_) => _CategoryFormDialog(initial: cat),
     );
-    if (result == null) return;
+    if (result == null || !mounted) return;
     try {
       await CategoryApi.update(id: cat.id, name: result.name, type: result.type);
       await _loadCategories();
@@ -94,15 +93,15 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
   Future<void> _delete(CategoryModel cat) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AppDialog(
+      builder: (dialogContext) => AppDialog(
         title: '카테고리 삭제',
         content: Text('"${cat.name}" 카테고리를 삭제할까요?'),
         confirmLabel: '삭제',
         confirmColor: AppColors.expenseAccent,
-        onConfirm: () => Navigator.pop(context, true),
+        onConfirm: () => Navigator.pop(dialogContext, true),
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
     try {
       await CategoryApi.delete(id: cat.id);
       await _loadCategories();
@@ -120,8 +119,7 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final expenseList = _categories.where((c) => c.type == 'EXPENSE').toList();
-    final incomeList = _categories.where((c) => c.type == 'INCOME').toList();
+    final categories = _categories;
 
     return BaseScaffold(
       title: '지출 카테고리 및 수입원',
@@ -133,12 +131,19 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
                 ? const Center(
                     child: CircularProgressIndicator(
                         color: AppColors.primaryPink, strokeWidth: 2))
+                : categories == null
+                ? Center(
+                    child: TextButton(
+                      onPressed: _loadCategories,
+                      child: const Text('카테고리 다시 불러오기'),
+                    ),
+                  )
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      _buildSection('지출 카테고리', expenseList, 'EXPENSE'),
+                      _buildSection('지출 카테고리', categories, 'EXPENSE'),
                       const SizedBox(height: 20),
-                      _buildSection('수입원', incomeList, 'INCOME'),
+                      _buildSection('수입원', categories, 'INCOME'),
                     ],
                   ),
           ),
@@ -148,7 +153,8 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
     );
   }
 
-  Widget _buildSection(String title, List<CategoryModel> list, String type) {
+  Widget _buildSection(String title, List<CategoryModel> categories, String type) {
+    final list = categories.where((category) => category.type == type);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -169,9 +175,9 @@ class _MyExpenseCategoryScreenState extends State<MyExpenseCategoryScreen> {
         ),
         const SizedBox(height: 8),
         if (list.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text('카테고리가 없어요.', style: AppTextStyles.caption),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text('$title 항목을 추가해 주세요.', style: AppTextStyles.caption),
           )
         else
           ...list.map(
