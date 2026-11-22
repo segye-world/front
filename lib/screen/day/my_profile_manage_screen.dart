@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../services/token_storage.dart';
+import '../../api/api_client.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_text_styles.dart';
@@ -25,7 +25,7 @@ class _MyProfileManageScreenState extends State<MyProfileManageScreen> {
   }
 
   Future<void> _loadNickname() async {
-    final nickname = await TokenStorage.loadNickname();
+    final nickname = await ApiClient.instance.tokenStorage.readNickname();
     if (mounted) setState(() => _nickname = nickname ?? '');
   }
 

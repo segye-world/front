@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../routes/routes.dart';
 import '../../api/auth_api.dart';
+import '../../api/api_client.dart';
 import '../../services/notification_service.dart';
-import '../../services/token_storage.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/common/app_dialog.dart';
@@ -21,6 +21,7 @@ class MyPageScreen extends StatefulWidget {
 class _MyPageScreenState extends State<MyPageScreen> {
   final AuthApi _authApi = AuthApi();
   String _nickname = '';
+  bool _isSigningOut = false;
 
   @override
   void initState() {
@@ -29,15 +30,27 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Future<void> _loadNickname() async {
-    final stored = await TokenStorage.loadNickname();
+    final stored = await ApiClient.instance.tokenStorage.readNickname();
     if (mounted) setState(() => _nickname = stored ?? '');
   }
 
   Future<void> _logout(BuildContext context) async {
-    await NotificationService.instance.clear();
-    await _authApi.logout();
-    if (!context.mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil(Routes.login, (r) => false);
+    if (_isSigningOut) return;
+    _isSigningOut = true;
+    try {
+      await _authApi.logout();
+      final notifications = NotificationService.instance;
+      try {
+        await notifications.clear();
+      } finally {
+        notifications.navigatorKey.currentState?.pushNamedAndRemoveUntil(Routes.login, (r) => false);
+      }
+    } catch (error) {
+      if (!context.mounted) return;
+      showErrorSnackBar(context, error, fallback: '로그아웃에 실패했습니다.');
+    } finally {
+      _isSigningOut = false;
+    }
   }
 
   Future<void> _deleteAccount(BuildContext context) async {

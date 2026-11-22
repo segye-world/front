@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'routes.dart';
 import '../screen/auth/login_screen.dart';
+import '../screen/auth/session_screen.dart';
 import '../screen/cash/cash_detail__screen.dart';
 import '../screen/cash/cash_records_screen.dart';
 import '../screen/day/day_detail__screen.dart';
@@ -14,6 +15,11 @@ import '../screen/my/mypage_screen.dart';
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case Routes.session:
+        return MaterialPageRoute(
+          builder: (_) => const SessionScreen(),
+          settings: settings,
+        );
       case Routes.login:
         return MaterialPageRoute(
           builder: (_) => const LoginScreen(),

@@ -6,6 +6,7 @@ import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'api_client.dart';
 import 'api_config.dart';
 import 'kakao_config.dart';
+import 'token_storage.dart';
 
 /// 사용자가 카카오 로그인 화면에서 직접 취소한 경우. 에러 메시지를 띄우지 않는다.
 class KakaoLoginCanceled implements Exception {}
@@ -38,10 +39,11 @@ class AuthApi {
       data: {'accessToken': kakaoToken.accessToken},
     );
 
-    final data = _extractData(response.data);
-    await _client.tokenStorage.saveAccessToken(data['accessToken'] as String);
-    await _saveNickname();
-    return data['isNewMember'] == true;
+    final tokens = SessionTokens.fromResponse(response.data);
+    await _client.tokenStorage.saveSession(tokens);
+    await _saveNickname(tokens.sessionId);
+    final data = response.data?['data'];
+    return data is Map && data['isNewMember'] == true;
   }
 
   Future<OAuthToken> _loginWithKakaoSdk() async {
@@ -78,12 +80,12 @@ class AuthApi {
   }
 
   /// 마이페이지 표시용 닉네임. 서버의 내 정보 조회(back #20)가 생기기 전까지 카카오에서 직접 받는다.
-  Future<void> _saveNickname() async {
+  Future<void> _saveNickname(Object sessionId) async {
     try {
       final user = await UserApi.instance.me();
       final nickname = user.kakaoAccount?.profile?.nickname;
       if (nickname != null && nickname.isNotEmpty) {
-        await _client.tokenStorage.saveNickname(nickname);
+        await _client.tokenStorage.saveNickname(nickname, sessionId);
       }
     } catch (e) {
       // 닉네임은 표시용이라 실패해도 로그인은 계속한다.
@@ -92,15 +94,27 @@ class AuthApi {
   }
 
   Future<void> logout() async {
-    await _clearKakaoToken();
-    await _client.tokenStorage.clearAll();
+    final tokens = await _client.tokenStorage.clearAll();
+    final refreshToken = tokens?.refreshToken;
+    try {
+      if (refreshToken != null) {
+        await _client.dio.post<void>(
+          '${ApiConfig.apiPrefix}/auth/logout',
+          data: {'refreshToken': refreshToken},
+        );
+      }
+    } on DioException {
+      // 네트워크 오류가 있어도 이 기기에서는 로그아웃을 마친다.
+    } finally {
+      await _clearKakaoToken();
+    }
   }
 
   /// 서버가 회원 데이터를 지우고 카카오 연결도 끊는다. 앱은 남은 토큰만 정리한다.
   Future<void> deleteAccount() async {
     await _client.dio.delete('${ApiConfig.apiPrefix}/members/me');
-    await _clearKakaoToken();
     await _client.tokenStorage.clearAll();
+    await _clearKakaoToken();
   }
 
   Future<void> _clearKakaoToken() async {
@@ -109,26 +123,5 @@ class AuthApi {
       // 서버 연결 끊기 뒤에는 API 호출이 실패하지만, SDK 는 실패해도 저장된 토큰을 지운다.
       await UserApi.instance.logout();
     } catch (_) {}
-  }
-
-  Map<String, dynamic> _extractData(Map<String, dynamic>? payload) {
-    final data = payload?['data'];
-    if (data is Map<String, dynamic>) {
-      final token = data['accessToken'];
-      if (token is String && token.isNotEmpty) {
-        return data;
-      }
-    }
-
-    final requestOptions = RequestOptions(path: '${ApiConfig.apiPrefix}/auth/kakao');
-    throw DioException.badResponse(
-      statusCode: 500,
-      requestOptions: requestOptions,
-      response: Response(
-        requestOptions: requestOptions,
-        statusCode: 500,
-        data: payload ?? const {'message': 'Empty login response payload'},
-      ),
-    );
   }
 }
