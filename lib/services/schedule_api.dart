@@ -17,15 +17,15 @@ class ScheduleApi {
   static Future<ScheduleModel> create({
     required String title,
     required String date,
-    required int startHour,
-    required int endHour,
+    required int startMinute,
+    required int endMinute,
     required String colorHex,
   }) async {
     final response = await ApiClient.post('/api/v1/schedules', {
       'title': title,
       'date': date,
-      'startHour': startHour,
-      'endHour': endHour,
+      'startMinute': startMinute,
+      'endMinute': endMinute,
       'colorHex': colorHex,
     });
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -39,14 +39,14 @@ class ScheduleApi {
   static Future<ScheduleModel> update({
     required int id,
     required String title,
-    required int startHour,
-    required int endHour,
+    required int startMinute,
+    required int endMinute,
     required String colorHex,
   }) async {
     final response = await ApiClient.put('/api/v1/schedules/$id', {
       'title': title,
-      'startHour': startHour,
-      'endHour': endHour,
+      'startMinute': startMinute,
+      'endMinute': endMinute,
       'colorHex': colorHex,
     });
     if (response.statusCode != 200) throw Exception('일정 수정 실패');

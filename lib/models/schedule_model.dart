@@ -2,16 +2,20 @@ class ScheduleModel {
   final int id;
   final String title;
   final String date;
-  final int startHour;
-  final int endHour;
+
+  /// 하루 시작(00:00)부터의 분. 14:30 이면 870 입니다.
+  final int startMinute;
+
+  /// 하루 시작(00:00)부터의 분. 24:00 이면 1440 입니다.
+  final int endMinute;
   final String colorHex;
 
   const ScheduleModel({
     required this.id,
     required this.title,
     required this.date,
-    required this.startHour,
-    required this.endHour,
+    required this.startMinute,
+    required this.endMinute,
     required this.colorHex,
   });
 
@@ -19,8 +23,9 @@ class ScheduleModel {
     id: json['id'] as int,
     title: json['title'] as String,
     date: _parseDate(json['date']),
-    startHour: json['startHour'] as int,
-    endHour: json['endHour'] as int,
+    // 분 단위를 모르는 이전 서버는 startHour/endHour 만 내려 줍니다.
+    startMinute: json['startMinute'] as int? ?? (json['startHour'] as int) * 60,
+    endMinute: json['endMinute'] as int? ?? (json['endHour'] as int) * 60,
     colorHex: json['colorHex'] as String,
   );
 
@@ -39,8 +44,8 @@ class ScheduleModel {
   Map<String, dynamic> toJson() => {
     'title': title,
     'date': date,
-    'startHour': startHour,
-    'endHour': endHour,
+    'startMinute': startMinute,
+    'endMinute': endMinute,
     'colorHex': colorHex,
   };
 }

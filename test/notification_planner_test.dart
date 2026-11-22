@@ -4,13 +4,21 @@ import 'package:segye_world/models/todo_model.dart';
 import 'package:segye_world/services/notification_planner.dart';
 import 'package:segye_world/services/notification_settings.dart';
 
-ScheduleModel schedule(int id, {String date = '2026-10-06', int start = 14, int end = 16}) =>
+/// [start]·[end] 는 시, [startMinute]·[endMinute] 를 주면 분 단위 값이 우선합니다.
+ScheduleModel schedule(
+  int id, {
+  String date = '2026-10-06',
+  int start = 14,
+  int end = 16,
+  int? startMinute,
+  int? endMinute,
+}) =>
     ScheduleModel(
       id: id,
       title: '일정$id',
       date: date,
-      startHour: start,
-      endHour: end,
+      startMinute: startMinute ?? start * 60,
+      endMinute: endMinute ?? end * 60,
       colorHex: '#F7A5A5',
     );
 
@@ -74,6 +82,19 @@ void main() {
     expect(result.map((n) => n.at), [
       DateTime(2026, 10, 6, 17, 30),
       DateTime(2026, 10, 6, 18, 50),
+    ]);
+  });
+
+  test('분 단위 일정은 분까지 맞춰 알린다', () {
+    final result = plan(
+      [schedule(1, startMinute: 14 * 60 + 15, endMinute: 15 * 60 + 5)],
+      [todo(1, scheduleId: 1)],
+      settings: const NotificationSettings(dailyWrapUp: false),
+    );
+
+    expect(result.map((n) => n.at), [
+      DateTime(2026, 10, 6, 13, 45),
+      DateTime(2026, 10, 6, 14, 55),
     ]);
   });
 

@@ -78,8 +78,9 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
   final _newTodoController = TextEditingController();
 
   int _selectedColorIndex = 0;
-  double _startHour = 13;
-  double _endHour = 15;
+  // 추가 폼의 시작·종료 시각. 00:00부터의 분입니다.
+  int _startMinute = 13 * 60;
+  int _endMinute = 15 * 60;
   _FinanceType _financeType = _FinanceType.expense;
   final List<String> _draftTodos = <String>[];
 
@@ -303,13 +304,13 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
     final blocks = schedules.map((schedule) => _ScheduleBlock(
       id: schedule.id,
       title: schedule.title,
-      startHour: schedule.startHour,
-      endHour: schedule.endHour,
+      startMinute: schedule.startMinute,
+      endMinute: schedule.endMinute,
       color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.45),
     )).toList();
     final sections = schedules.map((schedule) => _TodoSectionState(
       id: schedule.id,
-      title: '${schedule.title} ${_formatHour(schedule.startHour.toDouble())}-${_formatHour(schedule.endHour.toDouble())}',
+      title: '${schedule.title} ${_formatMinute(schedule.startMinute)}-${_formatMinute(schedule.endMinute)}',
       color: _colorFromHex(schedule.colorHex).withValues(alpha: 0.35),
       items: todos.where((todo) => todo.scheduleId == schedule.id).map(
         (todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone),
@@ -431,8 +432,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 
     _prepareAddMode();
     setState(() {
-      _startHour = start.toDouble();
-      _endHour = end.toDouble();
+      _startMinute = start * 60;
+      _endMinute = end * 60;
       // 접힌 레일에서도 어느 구간을 담았는지 보이도록 칠한 상태를 유지합니다.
       _selectionAnchorHour = anchor;
       _selectionFocusHour = focus;
@@ -595,8 +596,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       _newTodoController.clear();
       _draftTodos.clear();
       _selectedColorIndex = 0;
-      _startHour = 13;
-      _endHour = 15;
+      _startMinute = 13 * 60;
+      _endMinute = 15 * 60;
       _financeType = _FinanceType.expense;
       _selectedFinanceCategory = _expenseCategories.firstOrNull;
       // FAB 로 빈 폼을 열 때는 타임라인에 칠해 둔 구간도 같이 지웁니다.
@@ -636,8 +637,12 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       return;
     }
 
-    final start = _startHour.round();
-    final end = _endHour.round() <= start ? start + 1 : _endHour.round();
+    final start = _startMinute;
+    final end = _endMinute;
+    if (end <= start) {
+      showAppSnackBar(context, '종료 시간은 시작 시간보다 늦어야 합니다.');
+      return;
+    }
     final color = _palette[_selectedColorIndex];
 
     final amount = int.tryParse(_amountController.text.trim());
@@ -675,8 +680,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       final schedule = await ScheduleApi.create(
         title: title,
         date: _dateString,
-        startHour: start,
-        endHour: end,
+        startMinute: start,
+        endMinute: end,
         colorHex: '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
       );
 
@@ -706,8 +711,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         _ScheduleBlock(
           id: schedule.id,
           title: title,
-          startHour: start,
-          endHour: end,
+          startMinute: start,
+          endMinute: end,
           color: color.withValues(alpha: 0.45),
         ),
       );
@@ -716,7 +721,7 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
         _sections.length - 1,
         _TodoSectionState(
           id: schedule.id,
-          title: '$title ${_formatHour(_startHour)}-${_formatHour(_endHour)}',
+          title: '$title ${_formatMinute(start)}-${_formatMinute(end)}',
           color: color.withValues(alpha: 0.35),
           items: createdTodos
               .map((todo) => _TodoItemState(id: todo.id, label: todo.label, isDone: todo.isDone))
@@ -780,8 +785,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       amountController: _amountController,
       memoController: _memoController,
       newTodoController: _newTodoController,
-      startHour: _startHour,
-      endHour: _endHour,
+      startMinute: _startMinute,
+      endMinute: _endMinute,
       financeType: _financeType,
       activeCategories: _activeCategories,
       selectedFinanceCategory: _selectedFinanceCategory ?? '',
@@ -805,11 +810,17 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
       onColorSelected: (index) {
         setState(() => _selectedColorIndex = index);
       },
-      onStartHourChanged: (value) {
-        setState(() => _startHour = value);
+      onStartMinuteChanged: (value) {
+        setState(() {
+          _startMinute = value;
+          // 시작을 종료보다 늦게 옮기면 길이를 유지하지 않고 종료를 시작 바로 뒤로 밀어 줍니다.
+          if (_endMinute <= value) {
+            _endMinute = (value + _kTimeStepMinutes).clamp(_kTimeStepMinutes, 24 * 60);
+          }
+        });
       },
-      onEndHourChanged: (value) {
-        setState(() => _endHour = value);
+      onEndMinuteChanged: (value) {
+        setState(() => _endMinute = value);
       },
       onFinanceTypeChanged: _changeFinanceType,
       onFinanceCategoryChanged: (value) {
@@ -873,10 +884,16 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
 /// 드래그로 몇 칸을 지났는지 계산할 때도 같은 값을 써야 하므로 상수로 둡니다.
 const double _kTimelineRowHeight = 28;
 
-/// 해당 시각을 덮는 일정 블록을 찾습니다.
+/// 시간 입력에서 고를 수 있는 분 간격.
+const int _kTimeStepMinutes = 10;
+
+/// 해당 한 시간 칸과 조금이라도 겹치는 일정 블록을 찾습니다.
+/// 14:30~16:00 일정은 14시·15시 칸에 걸립니다.
 _ScheduleBlock? _blockForHour(List<_ScheduleBlock> blocks, int hour) {
+  final rowStart = hour * 60;
+  final rowEnd = rowStart + 60;
   for (final block in blocks) {
-    if (hour >= block.startHour && hour < block.endHour) {
+    if (block.startMinute < rowEnd && block.endMinute > rowStart) {
       return block;
     }
   }
@@ -1308,7 +1325,7 @@ class _DetailedTimeline extends StatelessWidget {
           final dayBlocks = isBaseDate ? blocks : const <_ScheduleBlock>[];
           final block = _blockForHour(dayBlocks, hourValue);
           // 블록이 시작하는 행에만 제목을 적어 겹쳐 보이지 않게 합니다.
-          final isBlockStart = block != null && block.startHour == hourValue;
+          final isBlockStart = block != null && block.startMinute ~/ 60 == hourValue;
 
           // 화면의 나머지(할 일·수입지출·추가 폼)가 모두 선택된 날짜 기준이므로,
           // 이어지는 다음 일자에는 일정을 만들 수 없게 둡니다.
@@ -1392,7 +1409,7 @@ class _TimelineHourRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? _DayDetailScreenState._accentColor.withValues(alpha: 0.55)
-              : currentBlock?.color,
+              : null,
           border: Border(
             top: BorderSide(
               color: isSelected
@@ -1402,23 +1419,42 @@ class _TimelineHourRow extends StatelessWidget {
             ),
           ),
         ),
-        child: Row(
+        child: Stack(
           children: [
-            SizedBox(
-              width: 38,
-              child: Text(
-                '$label:00',
-                textAlign: TextAlign.center,
-                style: AppTextStyles.tiny.copyWith(
-                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            if (!isSelected && currentBlock != null) _buildBlockFill(currentBlock),
+            Row(
+              children: [
+                SizedBox(
+                  width: 38,
+                  child: Text(
+                    '$label:00',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.tiny.copyWith(
+                      color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
                 ),
-              ),
+                Expanded(child: _buildTrailing(currentBlock)),
+              ],
             ),
-            Expanded(child: _buildTrailing(currentBlock)),
           ],
         ),
       ),
+    );
+  }
+
+  /// 일정이 이 칸에서 차지하는 분만큼만 칠합니다. 14:30 시작이면 14시 칸의 아래 절반입니다.
+  Widget _buildBlockFill(_ScheduleBlock block) {
+    final rowStart = hour * 60;
+    final from = (block.startMinute - rowStart).clamp(0, 60);
+    final to = (block.endMinute - rowStart).clamp(0, 60);
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: _kTimelineRowHeight * from / 60,
+      height: _kTimelineRowHeight * (to - from) / 60,
+      child: ColoredBox(color: block.color),
     );
   }
 
@@ -1504,7 +1540,7 @@ class _SelectionConfirmBar extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              '${_formatHour(startHour.toDouble())} – ${_formatHour(endHour.toDouble())} · $hours시간',
+              '${_formatMinute(startHour * 60)} – ${_formatMinute(endHour * 60)} · $hours시간',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.caption.copyWith(
@@ -1590,8 +1626,8 @@ class _DetailPanel extends StatelessWidget {
   final TextEditingController amountController;
   final TextEditingController memoController;
   final TextEditingController newTodoController;
-  final double startHour;
-  final double endHour;
+  final int startMinute;
+  final int endMinute;
   final _FinanceType financeType;
   final List<String> activeCategories;
   final String selectedFinanceCategory;
@@ -1612,8 +1648,8 @@ class _DetailPanel extends StatelessWidget {
   final VoidCallback onDraftTodoAdded;
   final ValueChanged<String> onDraftTodoRemoved;
   final ValueChanged<int> onColorSelected;
-  final ValueChanged<double> onStartHourChanged;
-  final ValueChanged<double> onEndHourChanged;
+  final ValueChanged<int> onStartMinuteChanged;
+  final ValueChanged<int> onEndMinuteChanged;
   final ValueChanged<_FinanceType> onFinanceTypeChanged;
   final ValueChanged<String> onFinanceCategoryChanged;
   final VoidCallback onSubmitNewSchedule;
@@ -1629,8 +1665,8 @@ class _DetailPanel extends StatelessWidget {
     required this.amountController,
     required this.memoController,
     required this.newTodoController,
-    required this.startHour,
-    required this.endHour,
+    required this.startMinute,
+    required this.endMinute,
     required this.financeType,
     required this.activeCategories,
     required this.selectedFinanceCategory,
@@ -1651,8 +1687,8 @@ class _DetailPanel extends StatelessWidget {
     required this.onDraftTodoAdded,
     required this.onDraftTodoRemoved,
     required this.onColorSelected,
-    required this.onStartHourChanged,
-    required this.onEndHourChanged,
+    required this.onStartMinuteChanged,
+    required this.onEndMinuteChanged,
     required this.onFinanceTypeChanged,
     required this.onFinanceCategoryChanged,
     required this.onSubmitNewSchedule,
@@ -1696,8 +1732,8 @@ class _DetailPanel extends StatelessWidget {
                   amountController: amountController,
                   memoController: memoController,
                   todoController: newTodoController,
-                  startHour: startHour,
-                  endHour: endHour,
+                  startMinute: startMinute,
+                  endMinute: endMinute,
                   financeType: financeType,
                   activeCategories: activeCategories,
                   selectedFinanceCategory: selectedFinanceCategory,
@@ -1706,8 +1742,8 @@ class _DetailPanel extends StatelessWidget {
                   onSourceCategoryChanged: onSourceCategoryChanged,
                   draftTodos: draftTodos,
                   onColorSelected: onColorSelected,
-                  onStartHourChanged: onStartHourChanged,
-                  onEndHourChanged: onEndHourChanged,
+                  onStartMinuteChanged: onStartMinuteChanged,
+                  onEndMinuteChanged: onEndMinuteChanged,
                   onFinanceTypeChanged: onFinanceTypeChanged,
                   onFinanceCategoryChanged: onFinanceCategoryChanged,
                   onDraftTodoAdded: onDraftTodoAdded,
@@ -2054,8 +2090,8 @@ class _ScheduleAddPanel extends StatelessWidget {
   final TextEditingController amountController;
   final TextEditingController memoController;
   final TextEditingController todoController;
-  final double startHour;
-  final double endHour;
+  final int startMinute;
+  final int endMinute;
   final _FinanceType financeType;
   final List<String> activeCategories;
   final String selectedFinanceCategory;
@@ -2064,8 +2100,8 @@ class _ScheduleAddPanel extends StatelessWidget {
   final ValueChanged<int?> onSourceCategoryChanged;
   final List<String> draftTodos;
   final ValueChanged<int> onColorSelected;
-  final ValueChanged<double> onStartHourChanged;
-  final ValueChanged<double> onEndHourChanged;
+  final ValueChanged<int> onStartMinuteChanged;
+  final ValueChanged<int> onEndMinuteChanged;
   final ValueChanged<_FinanceType> onFinanceTypeChanged;
   final ValueChanged<String> onFinanceCategoryChanged;
   final VoidCallback onDraftTodoAdded;
@@ -2079,8 +2115,8 @@ class _ScheduleAddPanel extends StatelessWidget {
     required this.amountController,
     required this.memoController,
     required this.todoController,
-    required this.startHour,
-    required this.endHour,
+    required this.startMinute,
+    required this.endMinute,
     required this.financeType,
     required this.activeCategories,
     required this.selectedFinanceCategory,
@@ -2089,8 +2125,8 @@ class _ScheduleAddPanel extends StatelessWidget {
     required this.onSourceCategoryChanged,
     required this.draftTodos,
     required this.onColorSelected,
-    required this.onStartHourChanged,
-    required this.onEndHourChanged,
+    required this.onStartMinuteChanged,
+    required this.onEndMinuteChanged,
     required this.onFinanceTypeChanged,
     required this.onFinanceCategoryChanged,
     required this.onDraftTodoAdded,
@@ -2138,22 +2174,23 @@ class _ScheduleAddPanel extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _HourSelector(
+              child: _TimeSelector(
                 label: '시작 시간',
-                value: startHour,
-                minHour: 0,
-                maxHour: 23,
-                onChanged: onStartHourChanged,
+                value: startMinute,
+                minMinute: 0,
+                maxMinute: 24 * 60 - _kTimeStepMinutes,
+                onChanged: onStartMinuteChanged,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _HourSelector(
+              // 시작보다 이른 종료 시각은 아예 고를 수 없게 합니다.
+              child: _TimeSelector(
                 label: '종료 시간',
-                value: endHour,
-                minHour: 1,
-                maxHour: 24,
-                onChanged: onEndHourChanged,
+                value: endMinute,
+                minMinute: startMinute + _kTimeStepMinutes,
+                maxMinute: 24 * 60,
+                onChanged: onEndMinuteChanged,
               ),
             ),
           ],
@@ -2267,44 +2304,48 @@ class _ScheduleAddPanel extends StatelessWidget {
   }
 }
 
-class _HourSelector extends StatelessWidget {
+class _TimeSelector extends StatelessWidget {
   final String label;
-  final double value;
 
-  /// 고를 수 있는 시각의 범위(양쪽 포함). 서버가 시작은 0~23, 종료는 1~24 를 받으므로
-  /// 종료 선택기는 24:00 까지 담을 수 있어야 합니다.
-  final int minHour;
-  final int maxHour;
-  final ValueChanged<double> onChanged;
+  /// 00:00부터의 분.
+  final int value;
 
-  const _HourSelector({
+  /// 고를 수 있는 시각의 범위(양쪽 포함, 분). 서버가 시작은 0~1439, 종료는 1~1440 을 받으므로
+  /// 종료 선택기는 24:00(1440) 까지 담을 수 있어야 합니다.
+  final int minMinute;
+  final int maxMinute;
+  final ValueChanged<int> onChanged;
+
+  const _TimeSelector({
     required this.label,
     required this.value,
-    required this.minHour,
-    required this.maxHour,
+    required this.minMinute,
+    required this.maxMinute,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hours = [
-      for (var hour = minHour; hour <= maxHour; hour++) hour.toDouble(),
+    final minutes = [
+      for (var minute = minMinute; minute <= maxMinute; minute += _kTimeStepMinutes) minute,
     ];
     // 범위를 벗어난 값이 들어오면 드롭다운이 항목을 찾지 못해 터지므로 걸러 냅니다.
-    final selected = hours.contains(value) ? value : null;
+    final selected = minutes.contains(value) ? value : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _FieldLabel(label),
-        DropdownButtonFormField<double>(
+        DropdownButtonFormField<int>(
           value: selected,
+          // 10분 간격이면 항목이 많으므로 펼친 목록 높이를 제한합니다.
+          menuMaxHeight: 320,
           decoration: const InputDecoration(border: UnderlineInputBorder()),
-          items: hours
+          items: minutes
               .map(
-                (hour) => DropdownMenuItem<double>(
-                  value: hour,
-                  child: Text(_formatHour(hour)),
+                (minute) => DropdownMenuItem<int>(
+                  value: minute,
+                  child: Text(_formatMinute(minute)),
                 ),
               )
               .toList(),
@@ -2337,15 +2378,15 @@ class _FieldLabel extends StatelessWidget {
 class _ScheduleBlock {
   final int id;
   final String title;
-  final int startHour;
-  final int endHour;
+  final int startMinute;
+  final int endMinute;
   final Color color;
 
   const _ScheduleBlock({
     required this.id,
     required this.title,
-    required this.startHour,
-    required this.endHour,
+    required this.startMinute,
+    required this.endMinute,
     required this.color,
   });
 }
@@ -2377,14 +2418,16 @@ class _TodoItemState {
 }
 
 /// 일정과 함께 추가한 수입·지출의 거래 시각을 계산합니다.
-/// [date]의 날짜에 일정 시작 시각([startHour]시 00분)을 붙여 반환합니다.
+/// [date]의 날짜에 일정 시작 시각([startMinute], 00:00부터의 분)을 붙여 반환합니다.
 @visibleForTesting
-DateTime scheduleTransactionTime(DateTime date, int startHour) =>
-    DateTime(date.year, date.month, date.day, startHour);
+DateTime scheduleTransactionTime(DateTime date, int startMinute) =>
+    DateTime(date.year, date.month, date.day, 0, startMinute);
 
-String _formatHour(double hour) {
-  final rounded = hour.round().toString().padLeft(2, '0');
-  return '$rounded:00';
+/// 00:00부터의 분을 "HH:mm" 으로 적습니다. 1440 은 "24:00" 입니다.
+String _formatMinute(int minute) {
+  final h = (minute ~/ 60).toString().padLeft(2, '0');
+  final m = (minute % 60).toString().padLeft(2, '0');
+  return '$h:$m';
 }
 
 String _formatAmount(int amount) {

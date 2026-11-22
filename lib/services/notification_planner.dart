@@ -45,7 +45,7 @@ List<PlannedNotification> planNotifications({
     if (remaining.isEmpty) continue;
 
     if (settings.scheduleStart) {
-      final start = DateTime(day.year, day.month, day.day, schedule.startHour);
+      final start = DateTime(day.year, day.month, day.day, 0, schedule.startMinute);
       planned.add(PlannedNotification(
         at: start.subtract(scheduleStartLead),
         title: '30분 뒤 「${schedule.title}」 시작',
@@ -55,8 +55,8 @@ List<PlannedNotification> planNotifications({
     }
 
     if (settings.scheduleEnd) {
-      // endHour 는 24 까지 올 수 있고, DateTime 이 다음 날 0시로 넘겨 줍니다.
-      final end = DateTime(day.year, day.month, day.day, schedule.endHour);
+      // endMinute 는 1440(24:00) 까지 올 수 있고, DateTime 이 다음 날 0시로 넘겨 줍니다.
+      final end = DateTime(day.year, day.month, day.day, 0, schedule.endMinute);
       planned.add(PlannedNotification(
         at: end.subtract(scheduleEndLead),
         title: '「${schedule.title}」 10분 뒤 종료',
