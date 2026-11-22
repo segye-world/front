@@ -687,11 +687,8 @@ class _DayDetailScreenState extends State<DayDetailScreen> {
           categoryId: selectedCategory.id,
           sourceCategoryId: requiresSourceCategory ? selectedSourceCategory!.id : null,
           scheduleId: schedule.id,
-          transactionTime: DateTime(
-            _selectedDate.year,
-            _selectedDate.month,
-            _selectedDate.day,
-          ),
+          // 일정과 함께 기록하는 거래는 일정 시작 시각을 기본 거래 시각으로 저장합니다. (#44)
+          transactionTime: scheduleTransactionTime(_selectedDate, start),
           memo: _memoController.text.trim(),
         );
       }
@@ -2369,6 +2366,12 @@ class _TodoItemState {
     this.isDone = false,
   });
 }
+
+/// 일정과 함께 추가한 수입·지출의 거래 시각을 계산합니다.
+/// [date]의 날짜에 일정 시작 시각([startHour]시 00분)을 붙여 반환합니다.
+@visibleForTesting
+DateTime scheduleTransactionTime(DateTime date, int startHour) =>
+    DateTime(date.year, date.month, date.day, startHour);
 
 String _formatHour(double hour) {
   final rounded = hour.round().toString().padLeft(2, '0');
